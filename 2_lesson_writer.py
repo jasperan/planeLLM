@@ -21,8 +21,8 @@ class PodcastWriter:
             timeout=(10, 240)
         )
         
-        # Llama 3.1 70B model ID
-        self.model_id = "ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyaiir6nnhmlgwvh37dr2mvragxzszqmz3hok52pcgmpqta"
+        # Load model ID from config
+        self.model_id = config_data['model_id']
 
     def _call_llm(self, prompt: str) -> str:
         """Make a call to the OCI GenAI service."""
