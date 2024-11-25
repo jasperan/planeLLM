@@ -25,24 +25,38 @@ class TopicExplorer:
         # Llama 3.1 70B model ID
         self.model_id = "ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyaiir6nnhmlgwvh37dr2mvragxzszqmz3hok52pcgmpqta"
 
+        # Add timing dictionary to store execution times
+        self.execution_times = {
+            'questions_generation': 0,
+            'responses': {}
+        }
+
     def generate_questions(self, topic: str) -> List[str]:
         """Generate relevant questions about the topic."""
+        start_time = time.time()
+        
         prompt = f"""You are an expert researcher. Generate 8-10 specific, detailed questions about {topic}.
         The questions should:
-        1. Cover different aspects and time periods
-        2. Include both well-known and lesser-known facts
-        3. Focus on interesting historical events, people, and places
+        1. Provide an introduction to the topic at hand
+        2. Cover different aspects and time periods
+        3. Include both well-known and lesser-known facts
+        3. Focus on simplicity and allowing people to completely learn about the topic by answering these questions
         4. Be specific enough to generate detailed responses
         
         Format: Return only the questions, one per line."""
 
         response = self._call_llm(prompt)
         questions = [q.strip() for q in response.split('\n') if q.strip() and '?' in q]
+        
+        # Store execution time
+        self.execution_times['questions_generation'] = time.time() - start_time
         return questions
 
     def explore_question(self, question: str) -> str:
         """Generate detailed content for a specific question."""
-        prompt = f"""As an expert storyteller, provide a detailed response to this question:
+        start_time = time.time()
+        
+        prompt = f"""As an expert researcher, provide a detailed response to this question:
         {question}
         
         Your response should:
@@ -52,7 +66,11 @@ class TopicExplorer:
         4. Connect events to their broader context
         """
         
-        return self._call_llm(prompt)
+        response = self._call_llm(prompt)
+        
+        # Store execution time
+        self.execution_times['responses'][question] = time.time() - start_time
+        return response
 
     def _call_llm(self, prompt: str) -> str:
         """Make a call to the OCI GenAI service."""
@@ -91,27 +109,62 @@ class TopicExplorer:
 
     def generate_full_content(self, topic: str) -> str:
         """Generate complete content about the topic through multiple questions."""
+        total_start_time = time.time()
+        
         print(f"Generating questions about {topic}...")
         questions = self.generate_questions(topic)
 
         print('Questions: {}'.format(questions))
         
+        # Initialize content without questions
         full_content = f"# {topic}\n\n"
+        # Prepare questions content separately
+        questions_content = f"# Questions for {topic}\n\n"
         
         for i, question in enumerate(questions, 1):
             print(f"Exploring question {i}/{len(questions)}: {question}")
             response = self.explore_question(question)
-            full_content += f"\n## {question}\n\n{response}\n\n"
+            # Add only the response to full_content
+            full_content += f"{response}\n\n"
+            # Add numbered question to questions content
+            questions_content += f"{i}. {question}\n"
+            
             print('Generated {} tokens'.format(len(response)))
+            print(f'Question execution time: {self.execution_times["responses"][question]:.2f} seconds')
+        
+        # Calculate and display timing summary
+        total_time = time.time() - total_start_time
+        timing_summary = self._generate_timing_summary(total_time)
+        print("\n" + timing_summary)
         
         # Create resources directory if it doesn't exist
         os.makedirs('./resources', exist_ok=True)
         
-        # Save the content
+        # Save the content and questions separately, without timing summary
         with open('./resources/raw_lesson_content.txt', 'w', encoding='utf-8') as f:
             f.write(full_content)
+            
+        with open('./resources/questions.txt', 'w', encoding='utf-8') as f:
+            f.write(questions_content)
         
         return full_content
+
+    def _generate_timing_summary(self, total_time: float) -> str:
+        """Generate a summary of execution times."""
+        summary = ["=== Execution Time Summary ==="]
+        summary.append(f"Questions Generation: {self.execution_times['questions_generation']:.2f} seconds")
+        
+        # Individual question times
+        summary.append("\nIndividual Question Times:")
+        for question, time_taken in self.execution_times['responses'].items():
+            summary.append(f"- {question[:50]}...: {time_taken:.2f} seconds")
+        
+        # Calculate average response time
+        avg_response_time = sum(self.execution_times['responses'].values()) / len(self.execution_times['responses'])
+        summary.append(f"\nAverage Response Time: {avg_response_time:.2f} seconds")
+        summary.append(f"Total Execution Time: {total_time:.2f} seconds")
+        
+        return "\n".join(summary)
 
 if __name__ == "__main__":
     explorer = TopicExplorer()
