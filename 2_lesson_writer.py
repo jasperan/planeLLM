@@ -1,10 +1,71 @@
-import torch
-from transformers import pipeline
+import oci
+import yaml
+import json
 import pickle
 import os
 
-SYSTEM_PROMPT = """
-You are a world-class podcast writer who has worked with top educational podcasters like Lex Fridman and Tim Ferriss.
+class PodcastWriter:
+    def __init__(self, config_file: str = 'config.yaml'):
+        # Load configuration
+        with open(config_file, 'r') as file:
+            config_data = yaml.safe_load(file)
+        
+        self.compartment_id = config_data['compartment_id']
+        config = oci.config.from_file('~/.oci/config', config_data['config_profile'])
+        
+        # Initialize OCI client
+        self.genai_client = oci.generative_ai_inference.GenerativeAiInferenceClient(
+            config=config,
+            service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
+            retry_strategy=oci.retry.NoneRetryStrategy(),
+            timeout=(10, 240)
+        )
+        
+        # Llama 3.1 70B model ID
+        self.model_id = "ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyaiir6nnhmlgwvh37dr2mvragxzszqmz3hok52pcgmpqta"
+
+    def _call_llm(self, prompt: str) -> str:
+        """Make a call to the OCI GenAI service."""
+        # Create message content
+        content = oci.generative_ai_inference.models.TextContent()
+        content.text = prompt
+
+        # Create message
+        message = oci.generative_ai_inference.models.Message()
+        message.role = "USER"
+        message.content = [content]
+
+        # Create chat request
+        chat_request = oci.generative_ai_inference.models.GenericChatRequest()
+        chat_request.api_format = oci.generative_ai_inference.models.BaseChatRequest.API_FORMAT_GENERIC
+        chat_request.messages = [message]
+        chat_request.max_tokens = 9192
+        chat_request.temperature = 1.0  # Higher temperature for more creative podcast-style content
+        chat_request.frequency_penalty = 0.0
+        chat_request.presence_penalty = 0
+        chat_request.top_p = 0.7
+        chat_request.top_k = -1
+
+        # Create chat details
+        chat_detail = oci.generative_ai_inference.models.ChatDetails()
+        chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(
+            model_id=self.model_id
+        )
+        chat_detail.chat_request = chat_request
+        chat_detail.compartment_id = self.compartment_id
+
+        # Make the API call
+        response = self.genai_client.chat(chat_detail)
+        json_result = json.loads(str(vars(response)['data']))
+        return json_result['chat_response']['choices'][0]['message']['content'][0]['text']
+
+    def create_podcast_transcript(self, input_content: str) -> str:
+        """Transform educational content into an engaging podcast transcript."""
+        
+        # Ensure resources directory exists
+        os.makedirs('./resources', exist_ok=True)
+        
+        system_prompt = """You are a world-class podcast writer who has worked with top educational podcasters like Lex Fridman and Tim Ferriss.
 
 Your task is to transform educational content into an engaging podcast conversation between two speakers:
 
@@ -19,43 +80,24 @@ The conversation should:
 5. Maintain an educational but conversational tone
 
 Start directly with Speaker 1's introduction. Do not include episode titles or chapters.
+
+Here's the content to transform:
+
 """
-
-def create_podcast_transcript(input_content, model_name="meta-llama/Llama-2-7b-chat-hf"):
-    """Transform educational content into an engaging podcast transcript."""
-    
-    # Ensure resources directory exists
-    os.makedirs('./resources', exist_ok=True)
-    
-    pipeline_instance = pipeline(
-        "text-generation",
-        model=model_name,
-        model_kwargs={"torch_dtype": torch.bfloat16},
-        device_map="auto",
-    )
-
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": input_content},
-    ]
-
-    output = pipeline_instance(
-        messages,
-        max_new_tokens=8126,
-        temperature=1,
-    )
-
-    transcript = output[0]["generated_text"][-1]['content']
-    
-    # Save the transcript
-    with open('./resources/podcast_transcript.pkl', 'wb') as file:
-        pickle.dump(transcript, file)
-    
-    # Also save as text for easy reading
-    with open('./resources/podcast_transcript.txt', 'w', encoding='utf-8') as file:
-        file.write(transcript)
-    
-    return transcript
+        
+        # Combine prompts and make the API call
+        full_prompt = system_prompt + input_content
+        transcript = self._call_llm(full_prompt)
+        
+        # Save the transcript
+        with open('./resources/podcast_transcript.pkl', 'wb') as file:
+            pickle.dump(transcript, file)
+        
+        # Also save as text for easy reading
+        with open('./resources/podcast_transcript.txt', 'w', encoding='utf-8') as file:
+            file.write(transcript)
+        
+        return transcript
 
 if __name__ == "__main__":
     # Read the generated lesson content
@@ -63,7 +105,8 @@ if __name__ == "__main__":
         lesson_content = f.read()
     
     # Create the podcast transcript
-    transcript = create_podcast_transcript(lesson_content)
+    writer = PodcastWriter()
+    transcript = writer.create_podcast_transcript(lesson_content)
     print("Transcript generated and saved to:")
     print("- ./resources/podcast_transcript.pkl")
     print("- ./resources/podcast_transcript.txt") 
