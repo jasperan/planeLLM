@@ -1,0 +1,3 @@
+# OCI Configuration
+compartment_id: "compartment_ocid"
+config_profile: "profile_name"
