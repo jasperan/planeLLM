@@ -4,6 +4,8 @@ import json
 from typing import List, Dict
 import time
 import os
+import argparse
+import tiktoken
 
 class TopicExplorer:
     def __init__(self, config_file: str = 'config.yaml'):
@@ -166,10 +168,31 @@ class TopicExplorer:
         
         return "\n".join(summary)
 
-if __name__ == "__main__":
+def count_tokens(text: str) -> int:
+    """Count the number of tokens in the text using GPT tokenizer."""
+    encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+    return len(encoding.encode(text))
+
+def main():
+    parser = argparse.ArgumentParser(description='Generate educational content about a topic')
+    parser.add_argument('--topic', type=str, required=True,
+                      help='Topic to explore and generate content about')
+    
+    args = parser.parse_args()
+    
+    print(f"Initializing TopicExplorer...")
     explorer = TopicExplorer()
     
-    # Example usage
-    topic = "Fort Worth and its history"
-    content = explorer.generate_full_content(topic)
-    print("\nContent generated and saved to ./resources/raw_lesson_content.txt") 
+    print(f"Generating content about: {args.topic}")
+    content = explorer.generate_full_content(args.topic)
+    
+    # Calculate content statistics
+    char_length = len(content)
+    token_count = count_tokens(content)
+    
+    print("\nContent Statistics:")
+    print(f"Character Length: {char_length}")
+    print(f"Token Count: {token_count}")
+
+if __name__ == "__main__":
+    main() 
