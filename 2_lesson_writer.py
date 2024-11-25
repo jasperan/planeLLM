@@ -67,33 +67,29 @@ class PodcastWriter:
         
         system_prompt = """You are a world-class podcast writer who has worked with top educational podcasters like Lex Fridman and Tim Ferriss.
 
-Your task is to transform educational content into an engaging podcast conversation between two speakers:
+        Your task is to transform educational content into an engaging podcast conversation between two speakers:
 
-Speaker 1: An expert historian who explains concepts clearly, uses great analogies, and shares relevant examples
-Speaker 2: A curious student who asks insightful questions and occasionally goes on interesting tangents
+        Speaker 1: An expert historian who explains concepts clearly, uses great analogies, and shares relevant examples
+        Speaker 2: A curious student who asks insightful questions and occasionally goes on interesting tangents
 
-The conversation should:
-1. Feel natural with "umm", "hmm", and other verbal fillers
-2. Include interruptions and clarifying questions
-3. Use real-world examples and analogies
-4. Have occasional tangents that make the content more engaging
-5. Maintain an educational but conversational tone
+        The conversation should:
+        1. Feel natural with "umm", "hmm", and other verbal fillers
+        2. Include interruptions and clarifying questions
+        3. Use real-world examples and analogies
+        4. Have occasional tangents that make the content more engaging
+        5. Maintain an educational but conversational tone
 
-Start directly with Speaker 1's introduction. Do not include episode titles or chapters.
+        Start directly with an introduction to the tool (planeLLM) that allows to create content like this. Do not include episode titles or chapters.
 
-Here's the content to transform:
+        Here's the content to transform:
 
-"""
-        
+        """
+                
         # Combine prompts and make the API call
         full_prompt = system_prompt + input_content
         transcript = self._call_llm(full_prompt)
         
-        # Save the transcript
-        with open('./resources/podcast_transcript.pkl', 'wb') as file:
-            pickle.dump(transcript, file)
-        
-        # Also save as text for easy reading
+        # Save as text for easy reading
         with open('./resources/podcast_transcript.txt', 'w', encoding='utf-8') as file:
             file.write(transcript)
         
@@ -108,5 +104,4 @@ if __name__ == "__main__":
     writer = PodcastWriter()
     transcript = writer.create_podcast_transcript(lesson_content)
     print("Transcript generated and saved to:")
-    print("- ./resources/podcast_transcript.pkl")
     print("- ./resources/podcast_transcript.txt") 

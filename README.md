@@ -19,3 +19,12 @@ In `config.yaml`, you will need to complete these variables (find them in your )
 compartment_id: "compartment_ocid"
 config_profile: "profile_name"
 ```
+
+## Use default `suno/bark` model
+python 3_tts.py
+
+# Use `parler` model
+python 3_tts.py --model parler
+
+# Specify custom transcript path
+python 3_tts.py --transcript ./my_transcript.txt

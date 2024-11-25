@@ -1,3 +1,7 @@
 # OCI Configuration
-compartment_id: "compartment_ocid"
-config_profile: "profile_name"
+compartment_id: ocid1.compartment.oc1..example
+config_profile: DEFAULT
+
+# Model Configuration
+# Llama 3.1 70B model ID for OCI GenAI service
+model_id: ocid1.generativeaimodel.oc1.us-chicago-1.amaaaaaask7dceyaiir6nnhmlgwvh37dr2mvragxzszqmz3hok52pcgmpqta
