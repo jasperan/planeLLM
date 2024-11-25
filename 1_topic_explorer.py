@@ -6,6 +6,34 @@ import time
 import os
 import argparse
 import tiktoken
+import threading
+from queue import Queue
+from concurrent.futures import ThreadPoolExecutor
+import time
+from threading import Lock, Event
+
+class RateLimiter:
+    def __init__(self, max_requests_per_minute: int):
+        self.max_requests = max_requests_per_minute
+        self.interval = 60  # 1 minute in seconds
+        self.requests = []
+        self.lock = Lock()
+        
+    def acquire(self):
+        with self.lock:
+            now = time.time()
+            # Remove requests older than the interval
+            self.requests = [req_time for req_time in self.requests if now - req_time <= self.interval]
+            
+            # if we hit the limit, wait
+            if len(self.requests) >= self.max_requests:
+                sleep_time = self.requests[0] + self.interval - now
+                if sleep_time > 0:
+                    time.sleep(sleep_time)
+                self.requests = self.requests[1:]  # Remove oldest request
+            
+            # Add current request
+            self.requests.append(now)
 
 class TopicExplorer:
     def __init__(self, config_file: str = 'config.yaml'):
@@ -33,6 +61,9 @@ class TopicExplorer:
             'responses': {}
         }
 
+        self.rate_limiter = RateLimiter(max_requests_per_minute=60)
+        self.response_lock = Lock()
+
     def generate_questions(self, topic: str) -> List[str]:
         """Generate relevant questions about the topic."""
         start_time = time.time()
@@ -40,7 +71,7 @@ class TopicExplorer:
         prompt = f"""You are an expert researcher. Generate 8-10 specific, detailed questions about {topic}.
         The questions should:
         1. Provide an introduction to the topic at hand
-        2. Cover different aspects and time periods
+        2. Cover different aspects of the topic
         3. Include both well-known and lesser-known facts
         3. Focus on simplicity and allowing people to completely learn about the topic by answering these questions
         4. Be specific enough to generate detailed responses
@@ -54,28 +85,13 @@ class TopicExplorer:
         self.execution_times['questions_generation'] = time.time() - start_time
         return questions
 
-    def explore_question(self, question: str) -> str:
-        """Generate detailed content for a specific question."""
-        start_time = time.time()
-        
-        prompt = f"""As an expert researcher, provide a detailed response to this question:
-        {question}
-        
-        Your response should:
-        1. Be detailed and engaging (aim for 500-700 words)
-        2. Include specific dates, names, and places
-        3. Share interesting anecdotes or lesser-known facts
-        4. Connect events to their broader context
-        """
-        
-        response = self._call_llm(prompt)
-        
-        # Store execution time
-        self.execution_times['responses'][question] = time.time() - start_time
-        return response
-
     def _call_llm(self, prompt: str) -> str:
-        """Make a call to the OCI GenAI service."""
+        """Make a rate-limited call to the OCI GenAI service."""
+        self.rate_limiter.acquire()
+        return self._make_llm_call(prompt)
+
+    def _make_llm_call(self, prompt: str) -> str:
+        """Internal method to make the actual LLM call."""
         # Create message content
         content = oci.generative_ai_inference.models.TextContent()
         content.text = prompt
@@ -109,13 +125,30 @@ class TopicExplorer:
         json_result = json.loads(str(vars(response)['data']))
         return json_result['chat_response']['choices'][0]['message']['content'][0]['text']
 
+    def _explore_question_thread(self, question: str, results: Dict[str, str]):
+        """Thread-safe question exploration."""
+        start_time = time.time()
+        response = self._call_llm(f"""As an expert researcher, provide a detailed response to this question:
+        {question}
+        
+        Your response should:
+        1. Be detailed and engaging (aim for 500-700 words)
+        2. Include specific data
+        3. Share interesting anecdotes or lesser-known facts
+        4. Connect events to their broader context
+        5. Focus on learning about the concept in simple terms
+        """)
+        
+        with self.response_lock:
+            results[question] = response
+            self.execution_times['responses'][question] = time.time() - start_time
+
     def generate_full_content(self, topic: str) -> str:
-        """Generate complete content about the topic through multiple questions."""
+        """Generate complete content about the topic using multithreading."""
         total_start_time = time.time()
         
         print(f"Generating questions about {topic}...")
         questions = self.generate_questions(topic)
-
         print('Questions: {}'.format(questions))
         
         # Initialize content without questions
@@ -123,14 +156,26 @@ class TopicExplorer:
         # Prepare questions content separately
         questions_content = f"# Questions for {topic}\n\n"
         
-        for i, question in enumerate(questions, 1):
-            print(f"Exploring question {i}/{len(questions)}: {question}")
-            response = self.explore_question(question)
-            # Add only the response to full_content
-            full_content += f"{response}\n\n"
-            # Add numbered question to questions content
-            questions_content += f"{i}. {question}\n"
+        # Use a dictionary to store results in order
+        results = {}
+        
+        # Create and start threads for each question
+        with ThreadPoolExecutor(max_workers=5) as executor:
+            futures = []
+            for question in questions:
+                futures.append(
+                    executor.submit(self._explore_question_thread, question, results)
+                )
             
+            # Wait for all threads to complete
+            for future in futures:
+                future.result()
+        
+        # Process results in order
+        for i, question in enumerate(questions, 1):
+            response = results[question]
+            full_content += f"{response}\n\n"
+            questions_content += f"{i}. {question}\n"
             print('Generated {} tokens'.format(len(response)))
             print(f'Question execution time: {self.execution_times["responses"][question]:.2f} seconds')
         
