@@ -20,11 +20,24 @@ compartment_id: "compartment_ocid"
 config_profile: "profile_name"
 ```
 
-## Use default `suno/bark` model
-python 3_tts.py
+## Generate content about a topic
 
+This will create raw lesson content and questions in the resources directory
+
+```bash
+python 1_topic_explorer.py --topic "Fort Worth and its history"
+# You can replace "Ancient Rome" with any topic you want to learn about
+# For example:
+python 1_topic_explorer.py --topic "Quantum Physics"
+python 1_topic_explorer.py --topic "Machine Learning"
+```
+
+## Use default `suno/bark` model
+
+```bash
+python 3_tts.py
 # Use `parler` model
 python 3_tts.py --model parler
-
 # Specify custom transcript path
 python 3_tts.py --transcript ./my_transcript.txt
+```
