@@ -48,7 +48,7 @@ class PodcastWriter:
         chat_request = oci.generative_ai_inference.models.GenericChatRequest()
         chat_request.api_format = oci.generative_ai_inference.models.BaseChatRequest.API_FORMAT_GENERIC
         chat_request.messages = [message]
-        chat_request.max_tokens = 9192
+        chat_request.max_tokens = 50000
         chat_request.temperature = 1.0  # Higher temperature for more creative podcast-style content
         chat_request.frequency_penalty = 0.0
         chat_request.presence_penalty = 0
