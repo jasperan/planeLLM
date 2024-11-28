@@ -20,9 +20,27 @@ compartment_id: "compartment_ocid"
 config_profile: "profile_name"
 ```
 
-## Generate content about a topic
+## Usage Options
 
-This will create raw lesson content and questions in the resources directory
+### Option 1: Unified Pipeline (Recommended)
+
+Run the entire pipeline with a single command:
+```bash
+python planellm.py --topic "Ancient Rome"
+```
+
+Additional options:
+```bash
+# Use a different TTS model
+python planellm.py --topic "Ancient Rome" --tts-model bark
+
+# Specify a different config file
+python planellm.py --topic "Ancient Rome" --config my_config.yaml
+```
+
+### Option 2: Step-by-Step Execution
+
+If you prefer more control, you can run each step separately. This will create raw lesson content and questions in the resources directory
 
 ```bash
 python 1_topic_explorer.py --topic "Fort Worth and its history"
