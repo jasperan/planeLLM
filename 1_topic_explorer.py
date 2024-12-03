@@ -1,3 +1,25 @@
+"""
+Topic Explorer Module for planeLLM.
+
+This module is responsible for generating educational content about a given topic using
+OCI's GenAI service with Llama 3.1 70B. It follows a two-step process:
+1. Generate relevant questions about the topic
+2. Create detailed answers for each question
+
+The module uses a class-based approach with comprehensive error handling and
+execution time tracking. It saves both the questions and content separately.
+
+Example:
+    explorer = TopicExplorer()
+    content = explorer.generate_full_content("Ancient Rome")
+
+Attributes:
+    DEFAULT_CONFIG_FILE (str): Default path to configuration file
+
+Classes:
+    TopicExplorer: Main class for content generation
+"""
+
 import oci
 import yaml
 import json

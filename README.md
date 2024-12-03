@@ -59,3 +59,32 @@ python 3_tts.py --model parler
 # Specify custom transcript path
 python 3_tts.py --transcript ./my_transcript.txt
 ```
+
+## Testing
+
+The project includes comprehensive unit tests for all modules. To run the tests:
+
+```bash
+# Install test dependencies
+pip install pytest pytest-cov
+
+# Run all tests with coverage report
+pytest tests/ --cov=./ --cov-report=term-missing
+
+# Run tests for a specific module
+pytest tests/test_topic_explorer.py
+pytest tests/test_lesson_writer.py
+pytest tests/test_tts.py
+```
+
+The tests cover:
+- Content generation functionality
+- Podcast transcript creation
+- Audio generation
+- Error handling
+- Execution time tracking
+
+Each module has its own test file in the `tests/` directory:
+- `test_topic_explorer.py`: Tests for educational content generation
+- `test_lesson_writer.py`: Tests for podcast script creation
+- `test_tts.py`: Tests for audio generation

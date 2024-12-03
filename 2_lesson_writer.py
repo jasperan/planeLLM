@@ -1,3 +1,24 @@
+"""
+Lesson Writer Module for planeLLM.
+
+This module transforms educational content into an engaging podcast transcript format
+using OCI's GenAI service. It takes the raw educational content and converts it into
+a natural conversation between an expert and a student.
+
+The module includes detailed execution time tracking and statistics for monitoring
+LLM performance and content generation metrics.
+
+Example:
+    writer = PodcastWriter()
+    transcript = writer.create_podcast_transcript(content)
+
+Attributes:
+    DEFAULT_CONFIG_FILE (str): Default path to configuration file
+
+Classes:
+    PodcastWriter: Main class for transcript generation
+"""
+
 import oci
 import yaml
 import json

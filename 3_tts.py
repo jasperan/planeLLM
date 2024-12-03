@@ -1,3 +1,22 @@
+"""
+Text-to-Speech Module for planeLLM.
+
+This module converts podcast transcripts into audio using various TTS models.
+It currently supports two TTS engines:
+1. Bark (default): High-quality but slower
+2. Parler: Faster but lower quality
+
+The module handles speaker separation, audio segment generation, and final audio
+compilation with comprehensive error handling and progress tracking.
+
+Example:
+    generator = TTSGenerator(model_type="bark")
+    generator.generate_podcast("podcast_transcript.txt")
+
+Classes:
+    TTSGenerator: Main class for audio generation
+"""
+
 import argparse
 from transformers import BarkModel, AutoProcessor
 from parler_tts import ParlerTTSForConditionalGeneration
