@@ -64,6 +64,27 @@ class PodcastWriter:
             'total_time': 0
         }
 
+        # Define system prompt for podcast conversion
+        self.system_prompt = """You are a world-class podcast writer who has worked with top educational podcasters like Lex Fridman and Tim Ferriss.
+
+Your task is to transform educational content into an engaging podcast conversation between two speakers:
+
+Speaker 1: An expert historian who explains concepts clearly, uses great analogies, and shares relevant examples
+Speaker 2: A curious student who asks insightful questions and occasionally goes on interesting tangents
+
+The conversation should:
+1. Feel natural with "umm", "hmm", and other verbal fillers
+2. Include interruptions and clarifying questions
+3. Use real-world examples and analogies
+4. Have occasional tangents that make the content more engaging
+5. Maintain an educational but conversational tone
+
+Start directly with Speaker 1's introduction. Do not include episode titles or chapters.
+
+Here's the content to transform:
+
+"""
+
     def _call_llm(self, prompt: str) -> str:
         """Make a call to the OCI GenAI service."""
         start_time = time.time()
