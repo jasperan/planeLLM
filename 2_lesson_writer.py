@@ -19,23 +19,39 @@ Classes:
     PodcastWriter: Main class for transcript generation
 """
 
+import warnings
+# Suppress all warnings
+warnings.filterwarnings('ignore')
+
+from typing import Dict, Any, Optional
 import oci
 import yaml
 import json
 import pickle
 import os
 import time
+from datetime import datetime
 
 class PodcastWriter:
-    def __init__(self, config_file: str = 'config.yaml'):
-        # Load configuration
-        with open(config_file, 'r') as file:
+    """Class for converting educational content into podcast format using OCI GenAI service."""
+    
+    def __init__(self, config_file: str = 'config.yaml') -> None:
+        """Initialize PodcastWriter with configuration.
+        
+        Args:
+            config_file: Path to YAML configuration file
+        
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+            yaml.YAMLError: If config file is invalid
+            oci.exceptions.ConfigFileNotFound: If OCI config is missing
+        """
+        with open(config_file, 'r', encoding='utf-8') as file:
             config_data = yaml.safe_load(file)
         
-        self.compartment_id = config_data['compartment_id']
+        self.compartment_id: str = config_data['compartment_id']
         config = oci.config.from_file('~/.oci/config', config_data['config_profile'])
         
-        # Initialize OCI client
         self.genai_client = oci.generative_ai_inference.GenerativeAiInferenceClient(
             config=config,
             service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
@@ -43,12 +59,8 @@ class PodcastWriter:
             timeout=(10, 240)
         )
         
-        # Load model ID from config
-        self.model_id = config_data['model_id']
-        
-        # Initialize timing dictionary
-        self.execution_times = {
-            'llm_calls': [],
+        self.model_id: str = config_data['model_id']
+        self.execution_times: Dict[str, float] = {
             'total_time': 0
         }
 

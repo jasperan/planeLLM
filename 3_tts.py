@@ -17,10 +17,19 @@ Classes:
     TTSGenerator: Main class for audio generation
 """
 
-import argparse
-from transformers import BarkModel, AutoProcessor
-from parler_tts import ParlerTTSForConditionalGeneration
+import warnings
+# Suppress all warnings
+warnings.filterwarnings('ignore')
+
+# Suppress specific PyTorch/transformers warnings
 import torch
+torch.set_warn_always(False)
+
+from typing import Tuple, List, Optional, Dict
+import argparse
+from transformers import BarkModel, AutoProcessor, logging
+logging.set_verbosity_error()  # Only show errors, not warnings
+from parler_tts import ParlerTTSForConditionalGeneration
 import numpy as np
 from pydub import AudioSegment
 import io
@@ -29,23 +38,44 @@ from tqdm import tqdm
 import ast
 
 class TTSGenerator:
-    def __init__(self, model_type: str = "bark"):
-        """Initialize TTS generator with specified model type."""
+    """Class for generating audio from podcast transcripts using various TTS models."""
+    
+    def __init__(self, model_type: str = "bark") -> None:
+        """Initialize TTSGenerator with specified model.
+        
+        Args:
+            model_type: Type of TTS model to use ('bark' or 'parler')
+            
+        Raises:
+            ValueError: If model_type is not supported
+            RuntimeError: If model fails to load
+        """
         self.model_type = model_type
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         
-        if model_type == "bark":
-            self.model = BarkModel.from_pretrained("suno/bark")
-            self.processor = AutoProcessor.from_pretrained("suno/bark")
-            self.model.to(self.device)
-        elif model_type == "parler":
-            self.model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1")
-            self.model.to(self.device)
-        else:
-            raise ValueError(f"Unsupported model type: {model_type}")
-
+        try:
+            if model_type == "bark":
+                self.model = BarkModel.from_pretrained("suno/bark")
+                self.processor = AutoProcessor.from_pretrained("suno/bark")
+                self.model.to(self.device)
+            elif model_type == "parler":
+                self.model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1")
+                self.model.to(self.device)
+            else:
+                raise ValueError(f"Unsupported model type: {model_type}")
+        except Exception as e:
+            raise RuntimeError(f"Failed to load {model_type} model: {str(e)}")
+            
     def _numpy_to_audio_segment(self, audio_array: np.ndarray, sample_rate: int) -> AudioSegment:
-        """Convert numpy array to AudioSegment."""
+        """Convert numpy array to AudioSegment.
+        
+        Args:
+            audio_array: Audio data as numpy array
+            sample_rate: Sample rate of the audio
+            
+        Returns:
+            AudioSegment object
+        """
         # Normalize audio
         audio_array = np.clip(audio_array, -1, 1)
         audio_array = (audio_array * 32767).astype(np.int16)
@@ -102,8 +132,16 @@ class TTSGenerator:
         
         # Read the transcript
         print("Reading transcript file...")
-        with open(transcript_path, 'r', encoding='utf-8') as f:
-            transcript = f.read()
+        try:
+            with open(transcript_path, 'r', encoding='utf-8') as f:
+                transcript = f.read().strip()
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Transcript file not found: {transcript_path}")
+        except Exception as e:
+            raise Exception(f"Error reading transcript file: {str(e)}")
+
+        if not transcript:
+            raise ValueError("Transcript file is empty")
 
         # Parse the transcript into speaker segments
         print("Parsing transcript into speaker segments...")
@@ -111,21 +149,31 @@ class TTSGenerator:
         current_speaker = None
         current_text = []
         
-        for line in transcript.split('\n'):
-            if line.startswith('Speaker 1:') or line.startswith('Speaker 2:'):
-                if current_speaker and current_text:  # Only add if there's content
-                    segments.append((current_speaker, ' '.join(current_text)))
-                current_speaker = line[:9]
-                current_text = [line[10:].strip()]
-            elif line.strip():
-                current_text.append(line.strip())
+        # Split by lines and clean up
+        lines = [line.strip() for line in transcript.split('\n') if line.strip()]
         
-        # Add the last segment if it exists
-        if current_speaker and current_text:  # Only add if there's content
+        for line in lines:
+            # Check for speaker markers with more flexible pattern matching
+            if 'Speaker 1:' in line or 'Speaker 2:' in line:
+                # Save previous segment if exists
+                if current_speaker and current_text:
+                    segments.append((current_speaker, ' '.join(current_text)))
+                
+                # Start new segment
+                current_speaker = 'Speaker 1' if 'Speaker 1:' in line else 'Speaker 2'
+                current_text = [line.split(':', 1)[1].strip()]
+            elif current_speaker:  # Continuation of current speaker's text
+                current_text.append(line)
+        
+        # Add the last segment
+        if current_speaker and current_text:
             segments.append((current_speaker, ' '.join(current_text)))
         
         if not segments:
-            raise ValueError("No valid segments found in transcript. Check transcript format.")
+            raise ValueError(
+                "No valid segments found in transcript. "
+                "Make sure the transcript contains 'Speaker 1:' or 'Speaker 2:' markers."
+            )
 
         print(f"Found {len(segments)} segments to process")
 

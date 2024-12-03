@@ -20,10 +20,14 @@ Classes:
     TopicExplorer: Main class for content generation
 """
 
+import warnings
+# Suppress all warnings
+warnings.filterwarnings('ignore')
+
 import oci
 import yaml
 import json
-from typing import List, Dict
+from typing import List, Dict, Any, Optional
 import time
 import os
 import argparse
@@ -58,15 +62,25 @@ class RateLimiter:
             self.requests.append(now)
 
 class TopicExplorer:
-    def __init__(self, config_file: str = 'config.yaml'):
-        # Load configuration
-        with open(config_file, 'r') as file:
+    """Class for generating educational content about a topic using OCI GenAI service."""
+    
+    def __init__(self, config_file: str = 'config.yaml') -> None:
+        """Initialize TopicExplorer with configuration.
+        
+        Args:
+            config_file: Path to YAML configuration file
+        
+        Raises:
+            FileNotFoundError: If config file doesn't exist
+            yaml.YAMLError: If config file is invalid
+            oci.exceptions.ConfigFileNotFound: If OCI config is missing
+        """
+        with open(config_file, 'r', encoding='utf-8') as file:
             config_data = yaml.safe_load(file)
         
-        self.compartment_id = config_data['compartment_id']
+        self.compartment_id: str = config_data['compartment_id']
         config = oci.config.from_file('~/.oci/config', config_data['config_profile'])
         
-        # Initialize OCI client
         self.genai_client = oci.generative_ai_inference.GenerativeAiInferenceClient(
             config=config,
             service_endpoint="https://inference.generativeai.us-chicago-1.oci.oraclecloud.com",
@@ -74,11 +88,8 @@ class TopicExplorer:
             timeout=(10, 240)
         )
         
-        # Load model ID from config
-        self.model_id = config_data['model_id']
-
-        # Add timing dictionary to store execution times
-        self.execution_times = {
+        self.model_id: str = config_data['model_id']
+        self.execution_times: Dict[str, Any] = {
             'questions_generation': 0,
             'responses': {}
         }
