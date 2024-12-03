@@ -66,6 +66,7 @@ class TopicExplorer:
 
     def generate_questions(self, topic: str) -> List[str]:
         """Generate relevant questions about the topic."""
+        print(f"\nGenerating questions about '{topic}'...")
         start_time = time.time()
         
         prompt = f"""You are an expert researcher. Generate 8-10 specific, detailed questions about {topic}.
@@ -77,12 +78,13 @@ class TopicExplorer:
         4. Be specific enough to generate detailed responses
         
         Format: Return only the questions, one per line."""
-
+        print("Sending prompt to LLM...")
         response = self._call_llm(prompt)
         questions = [q.strip() for q in response.split('\n') if q.strip() and '?' in q]
         
-        # Store execution time
-        self.execution_times['questions_generation'] = time.time() - start_time
+        duration = time.time() - start_time
+        print(f"Generated {len(questions)} questions in {duration:.2f} seconds")
+        
         return questions
 
     def _call_llm(self, prompt: str) -> str:
@@ -212,6 +214,30 @@ class TopicExplorer:
         summary.append(f"Total Execution Time: {total_time:.2f} seconds")
         
         return "\n".join(summary)
+
+    def explore_question(self, question: str) -> str:
+        """Generate detailed content for a specific question."""
+        print(f"\nExploring: {question}")
+        start_time = time.time()
+        
+        prompt = f"""As an expert researcher, provide a detailed response to this question:
+        {question}
+        
+        Your response should:
+        1. Be detailed and engaging (aim for 500-700 words)
+        2. Include specific data
+        3. Share interesting anecdotes or lesser-known facts
+        4. Connect events to their broader context
+        5. Focus on learning about the concept in simple terms
+        """
+        print("Generating detailed response...")
+        response = self._call_llm(prompt)
+        
+        duration = time.time() - start_time
+        tokens = len(response.split())
+        print(f"Generated {tokens} words in {duration:.2f} seconds")
+        
+        return response
 
 def count_tokens(text: str) -> int:
     """Count the number of tokens in the text using GPT tokenizer."""

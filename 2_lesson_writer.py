@@ -80,41 +80,23 @@ class PodcastWriter:
 
     def create_podcast_transcript(self, input_content: str) -> str:
         """Transform educational content into an engaging podcast transcript."""
+        print("\nTransforming content into podcast format...")
+        print(f"Input content length: {len(input_content)} characters")
+        
         start_time = time.time()
         
-        # Ensure resources directory exists
-        os.makedirs('./resources', exist_ok=True)
+        print("Generating podcast script...")
+        transcript = self._call_llm(self.system_prompt + input_content)
         
-        system_prompt = """You are a world-class podcast writer who has worked with top educational podcasters like Lex Fridman and Tim Ferriss.
-
-        Your task is to transform educational content into an engaging podcast conversation between two speakers:
-
-        Speaker 1: An expert historian who explains concepts clearly, uses great analogies, and shares relevant examples
-        Speaker 2: A curious student who asks insightful questions and occasionally goes on interesting tangents
-
-        The conversation should:
-        1. Feel natural with "umm", "hmm", and other verbal fillers
-        2. Include interruptions and clarifying questions
-        3. Use real-world examples and analogies
-        4. Have occasional tangents that make the content more engaging
-        5. Maintain an educational but conversational tone
-
-        Start directly with an introduction to the tool (planeLLM) that allows to create content like this. Do not include episode titles or chapters.
-
-        Here's the content to transform:
-
-        """
-                
-        # Combine prompts and make the API call
-        full_prompt = system_prompt + input_content
-        transcript = self._call_llm(full_prompt)
+        duration = time.time() - start_time
+        print(f"\nTranscript generated in {duration:.2f} seconds")
+        print(f"Transcript length: {len(transcript)} characters")
         
         # Save as text for easy reading
+        print("Saving transcript to file...")
         with open('./resources/podcast_transcript.txt', 'w', encoding='utf-8') as file:
             file.write(transcript)
-        
-        # Store total execution time
-        self.execution_times['total_time'] = time.time() - start_time
+        print("Transcript saved successfully!")
         
         return transcript
 

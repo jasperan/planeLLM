@@ -79,48 +79,71 @@ class TTSGenerator:
 
     def generate_podcast(self, transcript_path: str) -> None:
         """Generate full podcast audio from transcript."""
+        print("\nStarting podcast generation...")
+        
         # Read the transcript
+        print("Reading transcript file...")
         with open(transcript_path, 'r', encoding='utf-8') as f:
             transcript = f.read()
 
         # Parse the transcript into speaker segments
+        print("Parsing transcript into speaker segments...")
         segments = []
         current_speaker = None
         current_text = []
         
         for line in transcript.split('\n'):
             if line.startswith('Speaker 1:') or line.startswith('Speaker 2:'):
-                if current_speaker:
+                if current_speaker and current_text:  # Only add if there's content
                     segments.append((current_speaker, ' '.join(current_text)))
                 current_speaker = line[:9]
                 current_text = [line[10:].strip()]
             elif line.strip():
                 current_text.append(line.strip())
         
-        if current_speaker:
+        # Add the last segment if it exists
+        if current_speaker and current_text:  # Only add if there's content
             segments.append((current_speaker, ' '.join(current_text)))
+        
+        if not segments:
+            raise ValueError("No valid segments found in transcript. Check transcript format.")
+
+        print(f"Found {len(segments)} segments to process")
 
         # Generate audio for each segment
         final_audio = None
         
-        for speaker, text in tqdm(segments, desc="Generating podcast segments", unit="segment"):
-            if speaker == "Speaker 1":
-                audio_arr, rate = self.generate_speaker1_audio(text)
-            else:  # Speaker 2
-                audio_arr, rate = self.generate_speaker2_audio(text)
+        for i, (speaker, text) in enumerate(tqdm(segments, desc="Generating podcast segments", unit="segment")):
+            print(f"\nProcessing segment {i+1}/{len(segments)} ({speaker})")
+            print(f"Text length: {len(text)} characters")
             
-            # Convert to AudioSegment
-            audio_segment = self._numpy_to_audio_segment(audio_arr, rate)
-            
-            # Add to final audio
-            if final_audio is None:
-                final_audio = audio_segment
-            else:
-                final_audio += audio_segment
+            try:
+                if speaker == "Speaker 1":
+                    audio_arr, rate = self.generate_speaker1_audio(text)
+                else:  # Speaker 2
+                    audio_arr, rate = self.generate_speaker2_audio(text)
+                
+                # Convert to AudioSegment
+                audio_segment = self._numpy_to_audio_segment(audio_arr, rate)
+                
+                # Add to final audio
+                if final_audio is None:
+                    final_audio = audio_segment
+                else:
+                    final_audio = final_audio + audio_segment
+                    
+                print(f"Successfully processed segment {i+1}")
+            except Exception as e:
+                print(f"Error processing segment {i+1}: {str(e)}")
+                raise
+
+        if final_audio is None:
+            raise RuntimeError("Failed to generate any audio segments")
 
         # Ensure resources directory exists
         os.makedirs('./resources', exist_ok=True)
         
+        print("\nExporting final podcast...")
         # Export the final podcast
         final_audio.export(
             "./resources/podcast.mp3",
@@ -128,6 +151,7 @@ class TTSGenerator:
             bitrate="192k",
             parameters=["-q:a", "0"]
         )
+        print("Podcast exported successfully!")
 
 def main():
     parser = argparse.ArgumentParser(description='Generate podcast audio from transcript')
