@@ -127,7 +127,7 @@ Here's the content to transform:
             # Make the API call
             response = self.genai_client.chat(chat_detail)
             
-            # Extract response text
+            # Extract the response text
             response_text = response.data.chat_response.choices[0].message.content[0].text
             
             # Record execution time and details
