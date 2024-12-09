@@ -31,15 +31,17 @@ import pickle
 import os
 import time
 from datetime import datetime
+import argparse
 
 class PodcastWriter:
     """Class for converting educational content into podcast format using OCI GenAI service."""
     
-    def __init__(self, config_file: str = 'config.yaml') -> None:
+    def __init__(self, config_file: str = 'config.yaml', speakers: int = 2) -> None:
         """Initialize PodcastWriter with configuration.
         
         Args:
             config_file: Path to YAML configuration file
+            speakers: Number of speakers in the conversation
         
         Raises:
             FileNotFoundError: If config file doesn't exist
@@ -169,21 +171,29 @@ Here's the content to transform:
         
         return "\n".join(summary)
 
-if __name__ == "__main__":
-    print("Reading lesson content...")
-    # Read the generated lesson content
-    with open('./resources/raw_lesson_content.txt', 'r', encoding='utf-8') as f:
-        lesson_content = f.read()
+def main():
+    """Run the podcast writer with command line arguments."""
+    parser = argparse.ArgumentParser(description='Convert educational content to podcast format')
+    parser.add_argument('--speakers', type=int, choices=[2, 3], default=2,
+                      help='Number of speakers in the conversation (default: 2)')
+    parser.add_argument('--config', type=str, default='config.yaml',
+                      help='Path to configuration file (default: config.yaml)')
     
-    print("\nInitializing PodcastWriter...")
-    # Create the podcast transcript
-    writer = PodcastWriter()
+    args = parser.parse_args()
     
-    print("\nGenerating podcast transcript...")
-    transcript = writer.create_podcast_transcript(lesson_content)
+    print(f"\nInitializing PodcastWriter with {args.speakers} speakers...")
+    writer = PodcastWriter(config_file=args.config, speakers=args.speakers)
     
-    print("\nTranscript generated and saved to:")
-    print("- ./resources/podcast_transcript.txt")
+    print("Reading content from raw_lesson_content.txt...")
+    try:
+        with open('./resources/raw_lesson_content.txt', 'r', encoding='utf-8') as f:
+            content = f.read()
+    except FileNotFoundError:
+        print("Error: raw_lesson_content.txt not found in resources directory.")
+        print("Please run step 1 (topic_explorer.py) first.")
+        return
     
-    # Print timing summary
-    print("\n" + writer._generate_timing_summary()) 
+    writer.create_podcast_transcript(content)
+
+if __name__ == '__main__':
+    main() 

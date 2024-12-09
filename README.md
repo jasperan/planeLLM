@@ -26,16 +26,16 @@ config_profile: "profile_name"
 
 Run the entire pipeline with a single command:
 ```bash
-python planellm.py --topic "Ancient Rome"
+python podcast_controller.py --topic "Ancient Rome"
 ```
 
 Additional options:
 ```bash
 # Use a different TTS model
-python planellm.py --topic "Ancient Rome" --tts-model bark
+python podcast_controller.py --topic "Ancient Rome" --tts-model bark
 
 # Specify a different config file
-python planellm.py --topic "Ancient Rome" --config my_config.yaml
+python podcast_controller.py --topic "Ancient Rome" --config my_config.yaml
 ```
 
 ### Option 2: Step-by-Step Execution
@@ -52,23 +52,22 @@ python 1_topic_explorer.py --topic "Machine Learning"
 
 ### 2. Convert to Podcast Format
 
-You have two options for converting the content to a podcast format:
+Transform the educational content into a conversational podcast format. You can choose between two conversation styles:
 
-#### Option A: Two-Speaker Format (Default)
-Transform the educational content into a conversation between an expert and a student:
 ```bash
+# Two speakers (default): Expert and Student
 python 2_lesson_writer.py
-```
 
-#### Option B: Three-Speaker Format
-Transform the content into a conversation that includes technical perspectives:
-```bash
-python 2_triple_speaker_lesson_writer.py
+# Three speakers: Expert, Student, and Developer
+python 2_lesson_writer.py --speakers 3
+
+# Specify a different config file
+python 2_lesson_writer.py --config my_config.yaml --speakers 3
 ```
 
 The three-speaker format adds a developer's perspective to the conversation, including technical insights about implementation, APIs, and DevOps considerations.
 
-Both options will generate the same output file (`podcast_transcript.txt`) in the resources directory.
+All options will generate the same output file (`podcast_transcript.txt`) in the resources directory.
 
 ## Use default `suno/bark` model
 
