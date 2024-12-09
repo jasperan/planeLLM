@@ -50,6 +50,26 @@ python 1_topic_explorer.py --topic "Quantum Physics"
 python 1_topic_explorer.py --topic "Machine Learning"
 ```
 
+### 2. Convert to Podcast Format
+
+You have two options for converting the content to a podcast format:
+
+#### Option A: Two-Speaker Format (Default)
+Transform the educational content into a conversation between an expert and a student:
+```bash
+python 2_lesson_writer.py
+```
+
+#### Option B: Three-Speaker Format
+Transform the content into a conversation that includes technical perspectives:
+```bash
+python 2_triple_speaker_lesson_writer.py
+```
+
+The three-speaker format adds a developer's perspective to the conversation, including technical insights about implementation, APIs, and DevOps considerations.
+
+Both options will generate the same output file (`podcast_transcript.txt`) in the resources directory.
+
 ## Use default `suno/bark` model
 
 ```bash
