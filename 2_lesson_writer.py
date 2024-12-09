@@ -126,7 +126,9 @@ Here's the content to transform:
 
             # Make the API call
             response = self.genai_client.chat(chat_detail)
-            json_result = vars(response)['data']
+            
+            # Extract response text
+            response_text = response.data.chat_response.choices[0].message.content[0].text
             
             # Record execution time and details
             end_time = time.time()
@@ -136,10 +138,10 @@ Here's the content to transform:
                 'timestamp': datetime.now().isoformat(),
                 'duration': duration,
                 'prompt_length': len(prompt),
-                'response_length': len(json_result['chat_response']['choices'][0]['message']['content'][0]['text'])
+                'response_length': len(response_text)
             })
             
-            return json_result['chat_response']['choices'][0]['message']['content'][0]['text']
+            return response_text
             
         except Exception as e:
             print(f"Error in LLM call: {str(e)}")
