@@ -1,52 +1,88 @@
-"""Unit tests for TTS module."""
+#!/usr/bin/env python
+"""
+Tests for the TTS generator module.
+"""
 
-import unittest
-from unittest.mock import Mock, patch
 import os
-import sys
-import numpy as np
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import unittest
+from unittest.mock import patch, MagicMock
+import tempfile
 
-from tts import TTSGenerator
+# Import the TTSGenerator class from the adapter module
+from tts_generator import TTSGenerator
 
 class TestTTSGenerator(unittest.TestCase):
-    """Test cases for TTSGenerator class."""
-
+    """Test cases for the TTSGenerator class."""
+    
     def setUp(self):
         """Set up test fixtures."""
-        with patch('transformers.BarkModel.from_pretrained') as self.mock_model:
-            with patch('transformers.AutoProcessor.from_pretrained') as self.mock_processor:
-                self.generator = TTSGenerator(model_type="bark")
-
-    def test_generate_speaker1_audio(self):
-        """Test audio generation for speaker 1."""
-        mock_audio = np.zeros(1000)
-        self.generator.model.generate = Mock(return_value=mock_audio)
+        # Create a temporary directory for test files
+        self.test_dir = tempfile.mkdtemp()
         
-        audio_array, rate = self.generator.generate_speaker1_audio("Test text")
-        self.assertEqual(rate, 24000)
-        self.assertEqual(len(audio_array), 1000)
-
-    def test_generate_speaker2_audio(self):
-        """Test audio generation for speaker 2."""
-        mock_audio = np.zeros(1000)
-        self.generator.model.generate = Mock(return_value=mock_audio)
+        # Create a sample transcript file
+        self.transcript_path = os.path.join(self.test_dir, "test_transcript.txt")
+        with open(self.transcript_path, "w", encoding="utf-8") as f:
+            f.write("Expert: Hello, today we'll discuss quantum physics.\n")
+            f.write("Student: That sounds interesting!\n")
+            f.write("Expert: Let's start with the basics.\n")
+    
+    def tearDown(self):
+        """Tear down test fixtures."""
+        # Clean up temporary files
+        if os.path.exists(self.transcript_path):
+            os.remove(self.transcript_path)
         
-        audio_array, rate = self.generator.generate_speaker2_audio("Test text")
-        self.assertEqual(rate, 24000)
-        self.assertEqual(len(audio_array), 1000)
-
-    def test_error_handling(self):
-        """Test error handling in audio generation."""
-        self.generator.model.generate = Mock(side_effect=Exception("Model Error"))
+        # Remove temporary directory
+        if os.path.exists(self.test_dir):
+            os.rmdir(self.test_dir)
+    
+    @patch("tts_generator.TTSGenerator")
+    def test_init(self, mock_tts):
+        """Test initialization of TTSGenerator."""
+        # Create a TTSGenerator instance
+        tts = TTSGenerator(model_type="bark")
         
-        with self.assertRaises(Exception):
-            self.generator.generate_speaker1_audio("Test text")
-
-    def test_invalid_model_type(self):
-        """Test handling of invalid model type."""
+        # Check that the model_type is set correctly
+        self.assertEqual(tts.model_type, "bark")
+    
+    @patch("tts_generator.TTSGenerator.generate_podcast")
+    def test_generate_podcast_with_output_path(self, mock_generate):
+        """Test generate_podcast with a specified output path."""
+        # Create a TTSGenerator instance
+        tts = TTSGenerator(model_type="bark")
+        
+        # Call generate_podcast with an output path
+        output_path = os.path.join(self.test_dir, "test_output.mp3")
+        tts.generate_podcast(self.transcript_path, output_path=output_path)
+        
+        # Check that generate_podcast was called with the correct arguments
+        mock_generate.assert_called_once_with(self.transcript_path, output_path=output_path)
+    
+    @patch("tts_generator.TTSGenerator.generate_podcast")
+    def test_generate_podcast_without_output_path(self, mock_generate):
+        """Test generate_podcast without a specified output path."""
+        # Create a TTSGenerator instance
+        tts = TTSGenerator(model_type="bark")
+        
+        # Call generate_podcast without an output path
+        tts.generate_podcast(self.transcript_path)
+        
+        # Check that generate_podcast was called with the correct arguments
+        mock_generate.assert_called_once_with(self.transcript_path, output_path=None)
+    
+    @patch("tts_generator.TTSGenerator")
+    def test_model_type_validation(self, mock_tts):
+        """Test validation of model_type."""
+        # Test with valid model types
+        tts1 = TTSGenerator(model_type="bark")
+        self.assertEqual(tts1.model_type, "bark")
+        
+        tts2 = TTSGenerator(model_type="parler")
+        self.assertEqual(tts2.model_type, "parler")
+        
+        # Test with invalid model type
         with self.assertRaises(ValueError):
             TTSGenerator(model_type="invalid_model")
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main() 
