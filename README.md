@@ -1,6 +1,7 @@
 # planeLLM
-Bite-sized podcasts to learn about anything powrred by the OCI GenAI Service
+Bite-sized podcasts to learn about anything powered by the OCI GenAI Service
 
+## Setup
 
 Requirements: install [OCI CLI](https://docs.oracle.com/en-us/iaas/Content/API/SDKDocs/cliinstall.htm#InstallingCLI__macos_homebrew)
 
@@ -12,7 +13,7 @@ oci setup config
 
 In order to authenticate with OCI services and be able to call the OCI GenAI service through the OCI Service Gateway.
 
-In `config.yaml`, you will need to complete these variables (find them in your ))
+In `config.yaml`, you will need to complete these variables:
 
 ```yaml
 # OCI Configuration
@@ -20,9 +21,36 @@ compartment_id: "compartment_ocid"
 config_profile: "profile_name"
 ```
 
+## Installation
+
+Install the required dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Usage Options
 
-### Option 1: Unified Pipeline (Recommended)
+### Option 1: Gradio Web Interface (Recommended)
+
+Run the Gradio web interface for an interactive experience:
+
+```bash
+python gradio_app.py
+```
+
+The interface provides three tabs:
+1. **Topic Explorer**: Generate educational content about any topic
+2. **Lesson Writer**: Convert content into podcast transcript format
+3. **TTS Generator**: Generate audio from the transcript
+
+Features:
+- User-friendly interface with progress indicators
+- File selection for content and transcripts
+- Choice of TTS models (Bark or Parler)
+- Automatic file saving with timestamps
+
+### Option 2: Unified Pipeline
 
 Run the entire pipeline with a single command:
 ```bash
@@ -38,46 +66,46 @@ python podcast_controller.py --topic "Ancient Rome" --tts-model bark
 python podcast_controller.py --topic "Ancient Rome" --config my_config.yaml
 ```
 
-### Option 2: Step-by-Step Execution
+### Option 3: Using as a Package
 
-If you prefer more control, you can run each step separately. This will create raw lesson content and questions in the resources directory
+You can also use planeLLM as a Python package:
 
-```bash
-python 1_topic_explorer.py --topic "Fort Worth and its history"
-# You can replace "Ancient Rome" with any topic you want to learn about
-# For example:
-python 1_topic_explorer.py --topic "Quantum Physics"
-python 1_topic_explorer.py --topic "Machine Learning"
+```python
+from topic_explorer import TopicExplorer
+from lesson_writer import PodcastWriter
+from tts_generator import TTSGenerator
+
+# Generate educational content
+explorer = TopicExplorer()
+content = explorer.generate_full_content("Ancient Rome")
+
+# Create podcast transcript
+writer = PodcastWriter()
+transcript = writer.create_podcast_transcript(content)
+
+# Generate audio
+generator = TTSGenerator(model_type="bark")
+generator.generate_podcast("./resources/podcast_transcript_TIMESTAMP.txt")
 ```
 
-### 2. Convert to Podcast Format
+## Core Components
 
-Transform the educational content into a conversational podcast format. You can choose between two conversation styles:
+The project consists of three main modules:
 
-```bash
-# Two speakers (default): Expert and Student
-python 2_lesson_writer.py
+1. **Topic Explorer** (`topic_explorer.py`): Generates educational content about a topic using OCI GenAI service
+   - Generates relevant questions about the topic
+   - Creates detailed answers for each question
+   - Saves questions and content to separate files
 
-# Three speakers: Expert, Student, and Developer
-python 2_lesson_writer.py --speakers 3
+2. **Lesson Writer** (`lesson_writer.py`): Transforms educational content into podcast format
+   - Converts raw content into a conversational format
+   - Supports 2 or 3 speakers
+   - Creates natural dialogue between expert(s) and student
 
-# Specify a different config file
-python 2_lesson_writer.py --config my_config.yaml --speakers 3
-```
-
-The three-speaker format adds a developer's perspective to the conversation, including technical insights about implementation, APIs, and DevOps considerations.
-
-All options will generate the same output file (`podcast_transcript.txt`) in the resources directory.
-
-## Use default `suno/bark` model
-
-```bash
-python 3_tts.py
-# Use `parler` model
-python 3_tts.py --model parler
-# Specify custom transcript path
-python 3_tts.py --transcript ./my_transcript.txt
-```
+3. **TTS Generator** (`tts_generator.py`): Converts podcast transcripts to audio
+   - Supports multiple TTS models (Bark and Parler)
+   - Handles speaker separation
+   - Generates high-quality audio output
 
 ## Testing
 
