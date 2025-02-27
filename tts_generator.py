@@ -117,11 +117,17 @@ class TTSGenerator:
         else:
             print("Bark model loaded on CPU")
         
-        # Define speaker presets
+        # Define speaker presets - using consistent voice presets for better voice consistency
         self.speakers = {
             "Speaker 1": "v2/en_speaker_6",  # Male expert
             "Speaker 2": "v2/en_speaker_9",  # Female student
             "Speaker 3": "v2/en_speaker_3"   # Second expert
+        }
+        
+        # Store the voice consistency settings
+        self.generation_params = {
+            "temperature": 0.01,  # Very low temperature for consistent voices
+            "do_sample": False    # Deterministic generation for maximum consistency
         }
     
     def _init_parler(self) -> None:
@@ -215,24 +221,31 @@ class TTSGenerator:
                 inputs = {k: v.to("cuda") for k, v in inputs.items()}
             
             # Generate audio with specific generation parameters
-            # note to self: do_sample Effect on voices: When True, introduces randomness in voice generation, making each generation slightly different
             generation_kwargs = {
                 "pad_token_id": self.model.config.pad_token_id,
-                "do_sample": False,
-                "temperature": 0.01
+                "do_sample": False,  # Deterministic generation (no sampling) for maximum voice consistency
+                "temperature": 0.01   # Very low temperature (near 0) for consistent voice characteristics
+                # Lower temperature = more consistent voice
+                # Higher temperature = more varied, creative voice
             }
             
             # IMPORTANT: Check if max_new_tokens is already in the inputs
             # If it is, we need to remove it to avoid the conflict
             if "max_new_tokens" in inputs:
                 del inputs["max_new_tokens"]
+            else:
+                # Add max_new_tokens only if not already in inputs
+                generation_kwargs["max_new_tokens"] = 250
+            
+            # Make a clean copy of inputs without any generation parameters
+            # to avoid conflicts with generation_kwargs
+            model_inputs = {}
+            for k, v in inputs.items():
+                if k not in ["max_new_tokens", "do_sample", "temperature", "pad_token_id"]:
+                    model_inputs[k] = v
             
             # Generate the audio
-            speech_output = self.model.generate(
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                **generation_kwargs
-            )
+            speech_output = self.model.generate(**model_inputs, **generation_kwargs)
             
             # Convert to audio segment
             audio_array = speech_output.cpu().numpy().squeeze()
@@ -280,11 +293,11 @@ class TTSGenerator:
             AudioSegment containing the generated speech
         """
         try:
-            # Generate audio
+            # Generate audio with low temperature for consistency
             audio_array = self.model.synthesize(
                 text=text,
                 speaker_id=self.speakers[speaker],
-                temperature=0.7
+                temperature=0.1  # Lower temperature for more consistent voices
             )
             
             # Save to temporary file and load as AudioSegment
