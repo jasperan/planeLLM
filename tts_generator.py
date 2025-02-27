@@ -459,7 +459,7 @@ class TTSGenerator:
                 
                 print(f"\nProcessing segment {i+1}/{len(segments)}: {speaker} ({len(text)} chars)")
                 
-                # Split long text into smaller chunks (max 200 chars)
+                # Split long text into smaller chunks (max 150 chars)
                 chunks = []
                 max_chunk_size = 150  # Reduced from 200 to ensure better handling
                 
@@ -499,12 +499,16 @@ class TTSGenerator:
                 if current_chunk:
                     chunks.append(' '.join(current_chunk))
                 
-                # Generate audio for each chunk
+                # Generate audio for each chunk - all chunks use the same speaker voice
                 segment_audio = AudioSegment.empty()
+                
+                # Log the speaker and voice being used
+                print(f"  Using voice preset for {speaker}: {self.speakers.get(speaker, 'default')}")
+                
                 for j, chunk in enumerate(chunks):
                     print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
                     
-                    # Generate audio based on model type
+                    # Generate audio based on model type - passing the same speaker for all chunks
                     if self.model_type == "bark":
                         chunk_audio = self._generate_audio_bark(chunk, speaker)
                     elif self.model_type == "parler":
