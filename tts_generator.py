@@ -88,6 +88,9 @@ class TTSGenerator:
         self.processor = AutoProcessor.from_pretrained("suno/bark")
         self.model = BarkModel.from_pretrained("suno/bark")
         
+        # Set pad token ID to avoid warnings
+        self.model.config.pad_token_id = self.model.config.eos_token_id
+        
         # Move model to GPU if available
         if torch.cuda.is_available():
             self.model = self.model.to("cuda")
@@ -144,12 +147,23 @@ class TTSGenerator:
                 return_tensors="pt"
             )
             
+            # Create attention mask if not present
+            if "attention_mask" not in inputs:
+                # Create attention mask (all 1s, same shape as input_ids)
+                inputs["attention_mask"] = torch.ones_like(inputs["input_ids"])
+            
             # Move inputs to GPU if available
             if torch.cuda.is_available():
                 inputs = {k: v.to("cuda") for k, v in inputs.items()}
             
-            # Generate audio
-            speech_output = self.model.generate(**inputs)
+            # Generate audio with specific generation parameters
+            speech_output = self.model.generate(
+                **inputs,
+                pad_token_id=self.model.config.pad_token_id,
+                do_sample=True,
+                temperature=0.7,
+                max_length=256
+            )
             
             # Convert to audio segment
             audio_array = speech_output.cpu().numpy().squeeze()
