@@ -17,6 +17,13 @@ import warnings
 # Suppress all warnings
 warnings.filterwarnings('ignore')
 
+# Specifically suppress the attention mask warnings
+warnings.filterwarnings('ignore', message='.*The attention mask.*')
+warnings.filterwarnings('ignore', message='.*The pad token id is not set.*')
+warnings.filterwarnings('ignore', message='.*You have modified the pretrained model configuration.*')
+warnings.filterwarnings('ignore', category=UserWarning)
+warnings.filterwarnings('ignore', category=FutureWarning)
+
 import os
 import torch
 # Suppress Flash Attention 2 warning
@@ -24,6 +31,9 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 # Suppress HF text generation warnings
 os.environ["HF_SUPPRESS_GENERATION_WARNINGS"] = "true"
+# Additional environment variables to suppress warnings
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import time
 import yaml
@@ -33,6 +43,11 @@ from typing import Dict, List, Optional, Union, Tuple
 from pydub import AudioSegment
 import tempfile
 import tqdm
+
+# Disable logging from transformers
+import logging
+logging.getLogger("transformers").setLevel(logging.ERROR)
+logging.getLogger("transformers.generation_utils").setLevel(logging.ERROR)
 
 class TTSGenerator:
     """Class for generating podcast audio from transcripts."""
@@ -207,15 +222,17 @@ class TTSGenerator:
                 "max_new_tokens": 250
             }
             
-            # Make a clean copy of inputs without any generation parameters
-            # to avoid conflicts with generation_kwargs
-            model_inputs = {}
-            for k, v in inputs.items():
-                if k not in ["max_new_tokens", "do_sample", "temperature", "pad_token_id"]:
-                    model_inputs[k] = v
+            # IMPORTANT: Check if max_new_tokens is already in the inputs
+            # If it is, we need to remove it to avoid the conflict
+            if "max_new_tokens" in inputs:
+                del inputs["max_new_tokens"]
             
             # Generate the audio
-            speech_output = self.model.generate(**model_inputs, **generation_kwargs)
+            speech_output = self.model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                **generation_kwargs
+            )
             
             # Convert to audio segment
             audio_array = speech_output.cpu().numpy().squeeze()
