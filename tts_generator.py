@@ -41,7 +41,7 @@ class TTSGenerator:
         """Initialize the TTS generator.
         
         Args:
-            model_type: Type of TTS model to use ('bark' or 'parler')
+            model_type: Type of TTS model to use ('bark', 'parler', or 'coqui')
             config_file: Path to configuration file
             
         Raises:
@@ -49,8 +49,8 @@ class TTSGenerator:
         """
         self.model_type = model_type.lower()
         
-        if self.model_type not in ["bark", "parler"]:
-            raise ValueError("Unsupported TTS model type. Choose 'bark' or 'parler'")
+        if self.model_type not in ["bark", "parler", "coqui"]:
+            raise ValueError("Unsupported TTS model type. Choose 'bark', 'parler', or 'coqui'")
         
         # Check for FFmpeg dependencies
         self.ffmpeg_available = self._check_ffmpeg()
@@ -65,8 +65,10 @@ class TTSGenerator:
         # Initialize model-specific components
         if self.model_type == "bark":
             self._init_bark()
-        else:  # parler
+        elif self.model_type == "parler":
             self._init_parler()
+        else:  # coqui
+            self._init_coqui()
         
         # Initialize execution time tracking
         self.execution_times = {
@@ -130,6 +132,41 @@ class TTSGenerator:
             self.model_type = "bark"
             self._init_bark()
             self.parler_available = False
+    
+    def _init_coqui(self) -> None:
+        """Initialize the Coqui TTS model."""
+        print("Initializing Coqui TTS model...")
+        try:
+            from TTS.api import TTS
+            
+            # Initialize Coqui TTS with a multi-speaker model
+            # Using VITS model which supports multi-speaker synthesis
+            self.model = TTS("tts_models/multilingual/multi-dataset/xtts_v2")
+            
+            # Define speaker presets (speaker names for Coqui XTTS)
+            self.speakers = {
+                "Speaker 1": "p326",  # Male expert
+                "Speaker 2": "p225",  # Female student
+                "Speaker 3": "p330"   # Second expert
+            }
+            self.coqui_available = True
+            
+            # Store sample rate for later use
+            self.sample_rate = 24000  # Default for XTTS
+            
+        except ImportError:
+            print("WARNING: Coqui TTS module not found. Using fallback TTS instead.")
+            print("To install Coqui TTS, run: pip install TTS")
+            # Fall back to Bark if Coqui is not available
+            self.model_type = "bark"
+            self._init_bark()
+            self.coqui_available = False
+        except Exception as e:
+            print(f"WARNING: Error initializing Coqui TTS: {str(e)}. Using fallback TTS instead.")
+            # Fall back to Bark if there's an error with Coqui
+            self.model_type = "bark"
+            self._init_bark()
+            self.coqui_available = False
     
     def _generate_audio_bark(self, text: str, speaker: str) -> AudioSegment:
         """Generate audio using Bark TTS.
@@ -238,6 +275,58 @@ class TTSGenerator:
             return audio_segment
         except Exception as e:
             print(f"Error generating audio with Parler: {str(e)}")
+            # Return a silent segment as fallback
+            return AudioSegment.silent(duration=1000)
+    
+    def _generate_audio_coqui(self, text: str, speaker: str) -> AudioSegment:
+        """Generate audio using Coqui TTS.
+        
+        Args:
+            text: Text to convert to speech
+            speaker: Speaker identifier
+            
+        Returns:
+            AudioSegment containing the generated speech
+        """
+        try:
+            # Create a temporary file to save the audio
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Generate audio with Coqui TTS
+            # For XTTS, we need to provide a reference audio file for the speaker
+            # Since we don't have that, we'll use the built-in speaker IDs
+            self.model.tts_to_file(
+                text=text,
+                file_path=temp_path,
+                speaker=self.speakers[speaker],
+                language="en"
+            )
+            
+            # Load as AudioSegment
+            if not self.ffmpeg_available:
+                print("WARNING: FFmpeg not available. Using silent audio as fallback.")
+                # Estimate duration based on text length (rough approximation)
+                estimated_duration = len(text) * 60  # ~60ms per character
+                audio_segment = AudioSegment.silent(duration=estimated_duration)
+            else:
+                try:
+                    audio_segment = AudioSegment.from_wav(temp_path)
+                except Exception as e:
+                    print(f"Error loading audio segment: {str(e)}")
+                    # Fallback to silent audio
+                    estimated_duration = len(text) * 60  # ~60ms per character
+                    audio_segment = AudioSegment.silent(duration=estimated_duration)
+            
+            # Clean up temporary file
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                print(f"Warning: Could not delete temporary file {temp_path}: {str(e)}")
+            
+            return audio_segment
+        except Exception as e:
+            print(f"Error generating audio with Coqui: {str(e)}")
             # Return a silent segment as fallback
             return AudioSegment.silent(duration=1000)
     
@@ -390,8 +479,10 @@ class TTSGenerator:
                     # Generate audio based on model type
                     if self.model_type == "bark":
                         chunk_audio = self._generate_audio_bark(chunk, speaker)
-                    else:  # parler
+                    elif self.model_type == "parler":
                         chunk_audio = self._generate_audio_parler(chunk, speaker)
+                    else:  # coqui
+                        chunk_audio = self._generate_audio_coqui(chunk, speaker)
                     
                     segment_audio += chunk_audio
                 

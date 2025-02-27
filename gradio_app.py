@@ -178,7 +178,7 @@ class PlaneLLMInterface:
         
         Args:
             transcript_file: Name of transcript file to use
-            model_type: TTS model to use ('bark' or 'parler')
+            model_type: TTS model to use ('bark', 'parler', or 'coqui')
             progress: Gradio progress indicator
             
         Returns:
@@ -198,9 +198,15 @@ class PlaneLLMInterface:
                     # Check if Parler was requested but fell back to Bark
                     if model_type == "parler" and not getattr(self.tts_generator, "parler_available", False):
                         progress(0.05, desc="Parler TTS not available, using Bark as fallback...")
+                    
+                    # Check if Coqui was requested but fell back to Bark
+                    if model_type == "coqui" and not getattr(self.tts_generator, "coqui_available", False):
+                        progress(0.05, desc="Coqui TTS not available, using Bark as fallback...")
             except ImportError as e:
                 if "parler" in str(e).lower():
                     return "", "Error: Parler TTS module is not installed. Please run: pip install git+https://github.com/huggingface/parler-tts.git"
+                elif "tts" in str(e).lower():
+                    return "", "Error: Coqui TTS module is not installed. Please run: pip install TTS"
                 else:
                     raise
             
@@ -354,9 +360,9 @@ def create_interface():
                 with gr.Row():
                     model_type = gr.Radio(
                         label="TTS Model",
-                        choices=["bark", "parler"],
+                        choices=["bark", "parler", "coqui"],
                         value="bark",
-                        info="Bark: Higher quality but slower, Parler: Faster but lower quality"
+                        info="Bark: High quality but slow, Parler: Faster but lower quality, Coqui: High quality with natural intonation"
                     )
                 
                 generate_audio_button = gr.Button("Generate Audio")
