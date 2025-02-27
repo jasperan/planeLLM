@@ -187,6 +187,10 @@ class PlaneLLMInterface:
         if not transcript_file:
             return "", "Error: Please select a transcript file"
         
+        # Ensure only bark model is used (parler and coqui are temporarily disabled)
+        if model_type != "bark":
+            return "", f"Error: {model_type} is temporarily disabled. Please use the 'bark' model instead."
+        
         try:
             progress(0, desc=f"Initializing {model_type} model...")
             
@@ -360,9 +364,9 @@ def create_interface():
                 with gr.Row():
                     model_type = gr.Radio(
                         label="TTS Model",
-                        choices=["bark", "parler", "coqui"],
+                        choices=["bark", {"label": "parler (temporarily disabled)", "value": "parler", "disabled": True}, {"label": "coqui (temporarily disabled)", "value": "coqui", "disabled": True}],
                         value="bark",
-                        info="Bark: High quality but slow, Parler: Faster but lower quality, Coqui: High quality with natural intonation"
+                        info="Bark: High quality but slow, Parler: Faster but lower quality (currently disabled), Coqui: High quality with natural intonation (currently disabled)"
                     )
                 
                 generate_audio_button = gr.Button("Generate Audio")
