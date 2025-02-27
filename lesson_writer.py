@@ -94,9 +94,9 @@ class PodcastWriter:
             
             """
         else:  # 3 speakers
-            self.system_prompt = f"""You are an expert podcast writer. Transform the following educational content into an engaging, conversational podcast transcript between three speakers:
-            
-            Speaker 1: The primary expert who explains core concepts clearly and engagingly
+            self.system_prompt = """You are an expert podcast writer who transforms educational content into engaging, conversational podcast transcripts. Your task is to create a natural, interactive dialogue between speakers that educates listeners on the given topic.
+
+            Speaker 1: An expert educator who explains concepts clearly
             Speaker 2: A curious student who asks thoughtful questions
             Speaker 3: A secondary expert who adds additional context, examples, and occasionally friendly debate
             
@@ -113,6 +113,13 @@ class PodcastWriter:
             10. Format the transcript with clear speaker labels (Speaker 1:, Speaker 2:, and Speaker 3:)
             11. Aim for approximately {self.exchange_count_3speakers} total exchanges between speakers
             12. Create a substantial, in-depth conversation that thoroughly explores the topic
+            13. Make the conversation feel natural by including:
+                - Occasional [laughs], [sighs], or [pauses] to show emotion
+                - Interruptions where speakers build on each other's points
+                - Informal language and conversational phrases ("you know", "I mean", etc.)
+                - Reactions to what other speakers say ("That's fascinating!", "Wait, really?")
+                - Brief personal anecdotes or experiences related to the topic
+            14. Avoid making the dialogue too formal or lecture-like
             
             Here's the educational content to transform:
             
@@ -281,6 +288,10 @@ class PodcastWriter:
         4. Format with Speaker 1: and Speaker 2: labels
         5. Keep it brief (about 150-200 words) and engaging
         6. Do NOT start exploring the topic in depth yet
+        7. Make the conversation feel natural by including:
+           - Occasional [laughs], [sighs], or [pauses] to show emotion
+           - Informal language and conversational phrases
+           - Genuine enthusiasm and curiosity
         """.format(input_content.split('\n\n')[0])
         
         print("Generating podcast introduction...")
@@ -308,6 +319,11 @@ class PodcastWriter:
             6. Make the explanation detailed with examples, analogies, and real-world applications
             7. Aim for about 400-600 words for this segment
             8. Do NOT include an introduction or conclusion to the whole podcast
+            9. Make the conversation feel natural by including:
+               - Occasional [laughs], [sighs], or [pauses] to show emotion
+               - Interruptions where speakers build on each other's points
+               - Informal language and conversational phrases
+               - Reactions to what other speakers say
             """.format(question, input_content)
             
             segment = self._call_llm(segment_prompt)
@@ -328,6 +344,10 @@ class PodcastWriter:
         4. Include a sign-off and thank you to listeners
         5. Format with Speaker 1: and Speaker 2: labels
         6. Keep it concise (about 150-200 words) and impactful
+        7. Make the conclusion feel natural by including:
+           - Expressions of gratitude between speakers
+           - A touch of humor or emotion [laughs]
+           - Informal closing remarks that sound conversational
         """.format(input_content.split('\n\n')[0], ', '.join(questions[:5]))
         
         print("Generating podcast conclusion...")

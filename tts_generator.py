@@ -398,7 +398,22 @@ class TTSGenerator:
         if current_speaker and current_text:
             segments.append((current_speaker, ' '.join(current_text)))
         
-        return segments
+        # Process natural conversation elements
+        processed_segments = []
+        for speaker, text in segments:
+            # Replace conversation elements with appropriate pauses or silence
+            # [laughs], [sighs], [pauses] etc. will be replaced with short pauses
+            processed_text = re.sub(r'\[(laughs|chuckles)\]', ' ', text)
+            processed_text = re.sub(r'\[(sighs|pauses|hmm)\]', ' ', text)
+            processed_text = re.sub(r'\[.*?\]', ' ', processed_text)  # Remove any other bracketed elements
+            
+            # Clean up extra spaces
+            processed_text = re.sub(r'\s+', ' ', processed_text).strip()
+            
+            if processed_text:  # Only add if there's text left after processing
+                processed_segments.append((speaker, processed_text))
+        
+        return processed_segments
     
     def generate_podcast(self, transcript: Union[str, os.PathLike], output_path: Optional[str] = None) -> str:
         """Generate podcast audio from transcript.
@@ -451,6 +466,9 @@ class TTSGenerator:
             segments = self._parse_transcript(transcript_text)
             print(f"Parsed {len(segments)} speaker segments")
             
+            # Store speaker voice assignments to ensure consistency
+            speaker_voices = {}
+            
             # Generate audio for each segment
             full_audio = AudioSegment.empty()
             
@@ -458,6 +476,17 @@ class TTSGenerator:
                 start_time = time.time()
                 
                 print(f"\nProcessing segment {i+1}/{len(segments)}: {speaker} ({len(text)} chars)")
+                
+                # Ensure consistent voice for each speaker
+                if speaker not in speaker_voices:
+                    # First time seeing this speaker, assign a voice
+                    voice = self.speakers.get(speaker, 'default')
+                    speaker_voices[speaker] = voice
+                    print(f"  Assigned voice preset for {speaker}: {voice}")
+                else:
+                    # Use the previously assigned voice
+                    voice = speaker_voices[speaker]
+                    print(f"  Using consistent voice preset for {speaker}: {voice}")
                 
                 # Split long text into smaller chunks (max 150 chars)
                 chunks = []
@@ -502,11 +531,13 @@ class TTSGenerator:
                 # Generate audio for each chunk - all chunks use the same speaker voice
                 segment_audio = AudioSegment.empty()
                 
-                # Log the speaker and voice being used
-                print(f"  Using voice preset for {speaker}: {self.speakers.get(speaker, 'default')}")
-                
+                # Process natural conversation elements like [laughs] with appropriate pauses
                 for j, chunk in enumerate(chunks):
                     print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
+                    
+                    # Check for natural conversation elements and add appropriate pauses
+                    has_laugh = '[laughs]' in chunk or '[chuckles]' in chunk
+                    has_pause = '[pauses]' in chunk or '[sighs]' in chunk
                     
                     # Generate audio based on model type - passing the same speaker for all chunks
                     if self.model_type == "bark":
@@ -515,6 +546,17 @@ class TTSGenerator:
                         chunk_audio = self._generate_audio_parler(chunk, speaker)
                     else:  # coqui
                         chunk_audio = self._generate_audio_coqui(chunk, speaker)
+                    
+                    # Add appropriate pauses for natural elements
+                    if has_laugh:
+                        # Add a short laugh pause (300ms)
+                        laugh_pause = AudioSegment.silent(duration=300)
+                        chunk_audio = chunk_audio + laugh_pause
+                    
+                    if has_pause:
+                        # Add a thoughtful pause (500ms)
+                        thoughtful_pause = AudioSegment.silent(duration=500)
+                        chunk_audio = chunk_audio + thoughtful_pause
                     
                     segment_audio += chunk_audio
                 
