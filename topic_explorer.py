@@ -8,6 +8,7 @@ OCI's GenAI service with Llama 3.1 70B. It follows a two-step process:
 
 The module uses a class-based approach with comprehensive error handling and
 execution time tracking. It saves both the questions and content separately.
+It utilizes multithreading to significantly improve performance.
 
 Example:
     explorer = TopicExplorer()
@@ -21,14 +22,14 @@ warnings.filterwarnings('ignore')
 import oci
 import yaml
 import json
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import time
 import os
 import argparse
 import tiktoken
 import threading
 from queue import Queue
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 from threading import Lock, Event
 
@@ -58,11 +59,12 @@ class RateLimiter:
 class TopicExplorer:
     """Class for generating educational content about a topic using OCI GenAI service."""
     
-    def __init__(self, config_file: str = 'config.yaml') -> None:
+    def __init__(self, config_file: str = 'config.yaml', max_workers: int = 10) -> None:
         """Initialize TopicExplorer with configuration.
         
         Args:
             config_file: Path to YAML configuration file
+            max_workers: Maximum number of worker threads to use for parallel processing
         
         Raises:
             FileNotFoundError: If config file doesn't exist
@@ -88,35 +90,60 @@ class TopicExplorer:
             'responses': {}
         }
 
+        # Configure multithreading
+        self.max_workers = max_workers
         self.rate_limiter = RateLimiter(max_requests_per_minute=60)
         self.response_lock = Lock()
 
+    def _generate_question_batch(self, topic: str, batch_id: int) -> List[str]:
+        """Generate a batch of questions about the topic."""
+        prompt = f"""You are an expert researcher and educator. Generate 3-4 specific, detailed questions about {topic}.
+        The questions should:
+        1. Cover different aspects of the topic (history, key concepts, applications, impact, etc.)
+        2. Include both well-known fundamentals and lesser-known interesting facts
+        3. Be specific enough to generate detailed, educational responses
+        4. Avoid overly broad questions that can't be answered thoroughly
+        
+        For batch {batch_id}, focus on {'foundational concepts' if batch_id == 1 else 'advanced concepts' if batch_id == 2 else 'real-world applications and impact'}.
+        
+        Format: Return only the questions, one per line, without numbering."""
+        
+        response = self._call_llm(prompt)
+        questions = [q.strip() for q in response.split('\n') if q.strip() and '?' in q]
+        return questions
+
     def generate_questions(self, topic: str) -> List[str]:
-        """Generate relevant questions about the topic."""
+        """Generate relevant questions about the topic using parallel processing."""
         print(f"\nGenerating questions about '{topic}'...")
         start_time = time.time()
         
-        prompt = f"""You are an expert researcher and educator. Generate 8-10 specific, detailed questions about {topic}.
-        The questions should:
-        1. Start with a foundational question that introduces the topic clearly
-        2. Follow a logical learning progression from basic to more advanced concepts
-        3. Cover different aspects of the topic (history, key concepts, applications, impact, etc.)
-        4. Include both well-known fundamentals and lesser-known interesting facts
-        5. Be specific enough to generate detailed, educational responses
-        6. Avoid overly broad questions that can't be answered thoroughly
-        7. Include at least one question about real-world applications or relevance
-        8. End with a thought-provoking question that encourages deeper reflection
+        all_questions = []
         
-        Format: Return only the questions, one per line, without numbering."""
-        print("Sending prompt to LLM...")
-        response = self._call_llm(prompt)
-        questions = [q.strip() for q in response.split('\n') if q.strip() and '?' in q]
+        # Use ThreadPoolExecutor to generate questions in parallel
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            # Submit tasks for different batches of questions
+            futures = [
+                executor.submit(self._generate_question_batch, topic, batch_id)
+                for batch_id in range(1, 4)  # 3 batches with different focus
+            ]
+            
+            # Collect results as they complete
+            for future in as_completed(futures):
+                try:
+                    batch_questions = future.result()
+                    all_questions.extend(batch_questions)
+                except Exception as e:
+                    print(f"Error generating questions: {str(e)}")
+        
+        # Ensure we have a reasonable number of questions
+        if len(all_questions) > 10:
+            all_questions = all_questions[:10]
         
         duration = time.time() - start_time
         self.execution_times['questions_generation'] = duration
-        print(f"Generated {len(questions)} questions in {duration:.2f} seconds")
+        print(f"Generated {len(all_questions)} questions in {duration:.2f} seconds")
         
-        return questions
+        return all_questions
 
     def _call_llm(self, prompt: str) -> str:
         """Make a rate-limited call to the OCI GenAI service."""
@@ -154,9 +181,21 @@ class TopicExplorer:
         chat_detail.compartment_id = self.compartment_id
 
         # Make the API call
-        response = self.genai_client.chat(chat_detail)
-        json_result = json.loads(str(vars(response)['data']))
-        return json_result['chat_response']['choices'][0]['message']['content'][0]['text']
+        try:
+            response = self.genai_client.chat(chat_detail)
+            json_result = json.loads(str(vars(response)['data']))
+            return json_result['chat_response']['choices'][0]['message']['content'][0]['text']
+        except Exception as e:
+            print(f"Error calling LLM: {str(e)}")
+            # Retry once after a short delay
+            time.sleep(2)
+            try:
+                response = self.genai_client.chat(chat_detail)
+                json_result = json.loads(str(vars(response)['data']))
+                return json_result['chat_response']['choices'][0]['message']['content'][0]['text']
+            except Exception as e:
+                print(f"Error on retry: {str(e)}")
+                return f"Error generating content: {str(e)}"
 
     def _explore_question_thread(self, question: str, results: Dict[str, str]):
         """Thread-safe question exploration."""
@@ -187,7 +226,7 @@ class TopicExplorer:
         
         print(f"Generating questions about {topic}...")
         questions = self.generate_questions(topic)
-        print('Questions: {}'.format(questions))
+        print(f'Generated {len(questions)} questions')
         
         # Initialize content without questions
         full_content = f"# {topic}\n\n"
@@ -197,8 +236,9 @@ class TopicExplorer:
         # Use a dictionary to store results in order
         results = {}
         
+        print(f"Exploring {len(questions)} questions in parallel...")
         # Create and start threads for each question
-        with ThreadPoolExecutor(max_workers=5) as executor:
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
             futures = []
             for question in questions:
                 futures.append(
@@ -206,15 +246,16 @@ class TopicExplorer:
                 )
             
             # Wait for all threads to complete
-            for future in futures:
+            for i, future in enumerate(as_completed(futures)):
+                print(f"Completed {i+1}/{len(futures)} questions")
                 future.result()
         
         # Process results in order
         for i, question in enumerate(questions, 1):
             response = results[question]
-            full_content += f"{response}\n\n"
+            full_content += f"## {question}\n\n{response}\n\n"
             questions_content += f"{i}. {question}\n"
-            print('Generated {} tokens'.format(len(response)))
+            print(f'Question {i}: Generated {len(response.split())} words')
             print(f'Question execution time: {self.execution_times["responses"][question]:.2f} seconds')
         
         # Calculate and display timing summary
