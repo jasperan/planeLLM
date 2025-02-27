@@ -12,10 +12,6 @@ Example:
     writer = PodcastWriter()
     transcript = writer.create_podcast_transcript(content)
     
-    # For longer, more detailed transcripts:
-    writer = PodcastWriter(transcript_length="long")
-    transcript = writer.create_podcast_transcript(content)
-    
     # For question-by-question processing:
     writer = PodcastWriter()
     transcript = writer.create_detailed_podcast_transcript(content)
@@ -38,23 +34,19 @@ import re
 class PodcastWriter:
     """Class for transforming educational content into podcast transcript format."""
     
-    def __init__(self, config_file: str = 'config.yaml', speakers: int = 2, transcript_length: str = "medium") -> None:
+    def __init__(self, config_file: str = 'config.yaml', speakers: int = 2) -> None:
         """Initialize PodcastWriter with configuration.
         
         Args:
             config_file: Path to YAML configuration file
             speakers: Number of speakers in the conversation (2 or 3)
-            transcript_length: Length of transcript to generate ("short", "medium", or "long")
             
         Raises:
             FileNotFoundError: If config file doesn't exist
-            ValueError: If speakers is not 2 or 3 or if transcript_length is invalid
+            ValueError: If speakers is not 2 or 3
         """
         if speakers not in [2, 3]:
             raise ValueError("Number of speakers must be 2 or 3")
-            
-        if transcript_length not in ["short", "medium", "long"]:
-            raise ValueError("Transcript length must be 'short', 'medium', or 'long'")
         
         with open(config_file, 'r', encoding='utf-8') as file:
             config_data = yaml.safe_load(file)
@@ -71,23 +63,13 @@ class PodcastWriter:
         
         self.model_id: str = config_data['model_id']
         self.speakers = speakers
-        self.transcript_length = transcript_length
         
-        # Set token and exchange counts based on transcript length
-        if transcript_length == "short":
-            self.max_tokens = 4000
-            self.exchange_count_2speakers = "10-15"
-            self.exchange_count_3speakers = "15-20"
-        elif transcript_length == "medium":
-            self.max_tokens = 6000
-            self.exchange_count_2speakers = "20-25"
-            self.exchange_count_3speakers = "25-30"
-        else:  # long
-            self.max_tokens = 8000
-            self.exchange_count_2speakers = "30-40"
-            self.exchange_count_3speakers = "40-50"
+        # Fixed token limit to avoid exceeding the 4000 token limit
+        self.max_tokens = 4000
+        self.exchange_count_2speakers = "10-15"
+        self.exchange_count_3speakers = "15-20"
         
-        # Set up system prompt based on number of speakers and transcript length
+        # Set up system prompt based on number of speakers
         if speakers == 2:
             self.system_prompt = f"""You are an expert podcast writer. Transform the following educational content into an engaging, conversational podcast transcript between two speakers:
             
@@ -201,7 +183,6 @@ class PodcastWriter:
         """Transform educational content into an engaging podcast transcript."""
         print("\nTransforming content into podcast format...")
         print(f"Input content length: {len(input_content)} characters")
-        print(f"Transcript length setting: {self.transcript_length}")
         
         self.execution_times['start_time'] = time.time()
         
@@ -289,9 +270,9 @@ class PodcastWriter:
         print(f"Extracted {len(questions)} questions/sections to process")
         
         # Generate introduction
-        intro_prompt = f"""You are an expert podcast writer. Create ONLY the introduction section for a podcast about the following topic:
+        intro_prompt = """You are an expert podcast writer. Create ONLY the introduction section for a podcast about the following topic:
 
-        {input_content.split('\n\n')[0]}
+        {}
         
         Guidelines:
         1. Write only the introduction (first 2-3 exchanges)
@@ -300,7 +281,7 @@ class PodcastWriter:
         4. Format with Speaker 1: and Speaker 2: labels
         5. Keep it brief (about 150-200 words) and engaging
         6. Do NOT start exploring the topic in depth yet
-        """
+        """.format(input_content.split('\n\n')[0])
         
         print("Generating podcast introduction...")
         introduction = self._call_llm(intro_prompt)
@@ -311,12 +292,12 @@ class PodcastWriter:
             print(f"Processing question {i+1}/{len(questions)}: {question[:50]}...")
             
             # Create a focused prompt for this question
-            segment_prompt = f"""You are an expert podcast writer. Create a segment of a podcast conversation about the following question:
+            segment_prompt = """You are an expert podcast writer. Create a segment of a podcast conversation about the following question:
 
-            {question}
+            {}
             
             Use the following educational content as reference:
-            {input_content}
+            {}
             
             Guidelines:
             1. Write only the segment discussing this specific question/topic
@@ -327,18 +308,18 @@ class PodcastWriter:
             6. Make the explanation detailed with examples, analogies, and real-world applications
             7. Aim for about 400-600 words for this segment
             8. Do NOT include an introduction or conclusion to the whole podcast
-            """
+            """.format(question, input_content)
             
             segment = self._call_llm(segment_prompt)
             segments.append(segment)
         
         # Generate conclusion
-        conclusion_prompt = f"""You are an expert podcast writer. Create ONLY the conclusion section for a podcast about the following topic:
+        conclusion_prompt = """You are an expert podcast writer. Create ONLY the conclusion section for a podcast about the following topic:
 
-        {input_content.split('\n\n')[0]}
+        {}
         
         The podcast has covered these main points:
-        {', '.join(questions[:5])}
+        {}
         
         Guidelines:
         1. Write only the conclusion (last 2-3 exchanges)
@@ -347,7 +328,7 @@ class PodcastWriter:
         4. Include a sign-off and thank you to listeners
         5. Format with Speaker 1: and Speaker 2: labels
         6. Keep it concise (about 150-200 words) and impactful
-        """
+        """.format(input_content.split('\n\n')[0], ', '.join(questions[:5]))
         
         print("Generating podcast conclusion...")
         conclusion = self._call_llm(conclusion_prompt)
