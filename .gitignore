@@ -172,3 +172,5 @@ resources/
 *.mp3
 *.wav
 .DS_Store
+
+.gradio
