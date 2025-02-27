@@ -26,6 +26,7 @@ os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 import time
 import yaml
 import re
+import shutil
 from typing import Dict, List, Optional, Union, Tuple
 from pydub import AudioSegment
 import tempfile
@@ -49,6 +50,12 @@ class TTSGenerator:
         if self.model_type not in ["bark", "parler"]:
             raise ValueError("Unsupported TTS model type. Choose 'bark' or 'parler'")
         
+        # Check for FFmpeg dependencies
+        self.ffmpeg_available = self._check_ffmpeg()
+        if not self.ffmpeg_available:
+            print("WARNING: FFmpeg/ffprobe not found. Audio export may fail.")
+            print("Please install FFmpeg: https://ffmpeg.org/download.html")
+        
         # Load configuration
         with open(config_file, 'r', encoding='utf-8') as file:
             self.config = yaml.safe_load(file)
@@ -65,6 +72,12 @@ class TTSGenerator:
             'total_time': 0,
             'segments': []
         }
+    
+    def _check_ffmpeg(self) -> bool:
+        """Check if FFmpeg and ffprobe are available."""
+        ffmpeg = shutil.which("ffmpeg")
+        ffprobe = shutil.which("ffprobe")
+        return ffmpeg is not None and ffprobe is not None
     
     def _init_bark(self) -> None:
         """Initialize the Bark TTS model."""
@@ -123,38 +136,55 @@ class TTSGenerator:
         Returns:
             AudioSegment containing the generated speech
         """
-        # Prepare inputs
-        inputs = self.processor(
-            text=text,
-            voice_preset=self.speakers[speaker],
-            return_tensors="pt"
-        )
-        
-        # Move inputs to GPU if available
-        if torch.cuda.is_available():
-            inputs = {k: v.to("cuda") for k, v in inputs.items()}
-        
-        # Generate audio
-        speech_output = self.model.generate(**inputs)
-        
-        # Convert to audio segment
-        audio_array = speech_output.cpu().numpy().squeeze()
-        
-        # Save to temporary file and load as AudioSegment
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-            temp_path = temp_file.name
-        
-        # Save as WAV
-        import scipy.io.wavfile as wavfile
-        wavfile.write(temp_path, rate=24000, data=audio_array)
-        
-        # Load as AudioSegment
-        audio_segment = AudioSegment.from_wav(temp_path)
-        
-        # Clean up temporary file
-        os.unlink(temp_path)
-        
-        return audio_segment
+        try:
+            # Prepare inputs
+            inputs = self.processor(
+                text=text,
+                voice_preset=self.speakers[speaker],
+                return_tensors="pt"
+            )
+            
+            # Move inputs to GPU if available
+            if torch.cuda.is_available():
+                inputs = {k: v.to("cuda") for k, v in inputs.items()}
+            
+            # Generate audio
+            speech_output = self.model.generate(**inputs)
+            
+            # Convert to audio segment
+            audio_array = speech_output.cpu().numpy().squeeze()
+            
+            # Save to temporary file and load as AudioSegment
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Save as WAV
+            import scipy.io.wavfile as wavfile
+            wavfile.write(temp_path, rate=24000, data=audio_array)
+            
+            # Load as AudioSegment
+            if not self.ffmpeg_available:
+                print("WARNING: FFmpeg not available. Using silent audio as fallback.")
+                audio_segment = AudioSegment.silent(duration=len(audio_array) * 1000 // 24000)
+            else:
+                try:
+                    audio_segment = AudioSegment.from_wav(temp_path)
+                except Exception as e:
+                    print(f"Error loading audio segment: {str(e)}")
+                    # Fallback to silent audio
+                    audio_segment = AudioSegment.silent(duration=len(audio_array) * 1000 // 24000)
+            
+            # Clean up temporary file
+            try:
+                os.unlink(temp_path)
+            except Exception as e:
+                print(f"Warning: Could not delete temporary file {temp_path}: {str(e)}")
+            
+            return audio_segment
+        except Exception as e:
+            print(f"Error in _generate_audio_bark: {str(e)}")
+            # Return a silent segment as fallback
+            return AudioSegment.silent(duration=1000)
     
     def _generate_audio_parler(self, text: str, speaker: str) -> AudioSegment:
         """Generate audio using Parler TTS.
@@ -251,6 +281,27 @@ class TTSGenerator:
         self.execution_times['start_time'] = time.time()
         
         try:
+            # Check for FFmpeg
+            if not self.ffmpeg_available:
+                print("WARNING: FFmpeg/ffprobe not found. Audio export will likely fail.")
+                print("Please install FFmpeg: https://ffmpeg.org/download.html")
+                
+                # Create a timestamp for the error file
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                error_path = f"./resources/error_missing_ffmpeg_{timestamp}.txt"
+                
+                # Create an error file with instructions
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    f.write("Error: FFmpeg/ffprobe not found. Audio generation failed.\n\n")
+                    f.write("Please install FFmpeg to generate audio:\n")
+                    f.write("- Ubuntu/Debian: sudo apt-get install ffmpeg\n")
+                    f.write("- CentOS/RHEL: sudo yum install ffmpeg\n")
+                    f.write("- macOS: brew install ffmpeg\n")
+                    f.write("- Windows: Download from https://ffmpeg.org/download.html\n")
+                
+                # Return the error file path
+                return error_path
+            
             # Determine if transcript is a file path or text
             if isinstance(transcript, str) and os.path.exists(transcript) and os.path.isfile(transcript):
                 # It's a file path
@@ -353,35 +404,92 @@ class TTSGenerator:
             # Export as MP3
             print(f"\nExporting podcast to {output_path}...")
             try:
+                if not self.ffmpeg_available:
+                    raise RuntimeError("FFmpeg/ffprobe not found. Cannot export audio.")
+                
                 full_audio.export(output_path, format="mp3")
             except Exception as e:
                 print(f"Error exporting audio: {str(e)}")
-                # Try with a different filename if permission error
+                
+                # Create a timestamp for error files
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                
+                # Handle different error types
                 if "Permission denied" in str(e):
+                    # Try with a different filename if permission error
                     alt_output_path = f"./resources/podcast_alt_{timestamp}.mp3"
                     print(f"Trying alternative path: {alt_output_path}")
-                    full_audio.export(alt_output_path, format="mp3")
-                    output_path = alt_output_path
+                    try:
+                        full_audio.export(alt_output_path, format="mp3")
+                        output_path = alt_output_path
+                    except Exception as e2:
+                        print(f"Error with alternative path: {str(e2)}")
+                        # Create an error file instead
+                        error_path = f"./resources/error_permission_{timestamp}.txt"
+                        with open(error_path, 'w', encoding='utf-8') as f:
+                            f.write(f"Error: Permission denied when exporting audio.\n\n")
+                            f.write(f"Original error: {str(e)}\n")
+                            f.write(f"Please check if the output directory is writable.")
+                        output_path = error_path
+                elif "ffprobe" in str(e) or "ffmpeg" in str(e):
+                    # FFmpeg/ffprobe not found
+                    error_path = f"./resources/error_missing_ffmpeg_{timestamp}.txt"
+                    with open(error_path, 'w', encoding='utf-8') as f:
+                        f.write("Error: FFmpeg/ffprobe not found. Audio generation failed.\n\n")
+                        f.write("Please install FFmpeg to generate audio:\n")
+                        f.write("- Ubuntu/Debian: sudo apt-get install ffmpeg\n")
+                        f.write("- CentOS/RHEL: sudo yum install ffmpeg\n")
+                        f.write("- macOS: brew install ffmpeg\n")
+                        f.write("- Windows: Download from https://ffmpeg.org/download.html\n")
+                    output_path = error_path
                 else:
-                    raise
+                    # Other errors
+                    error_path = f"./resources/error_general_{timestamp}.txt"
+                    with open(error_path, 'w', encoding='utf-8') as f:
+                        f.write(f"Error exporting audio: {str(e)}\n\n")
+                        f.write("Please check the logs for more details.")
+                    output_path = error_path
             
             print(f"Podcast generated in {self.execution_times['total_time']:.2f} seconds")
-            print(f"Total audio duration: {len(full_audio)/1000:.2f} seconds")
+            if isinstance(output_path, str) and output_path.endswith('.mp3'):
+                print(f"Total audio duration: {len(full_audio)/1000:.2f} seconds")
             
             return output_path
             
         except Exception as e:
             print(f"Error in generate_podcast: {str(e)}")
+            
+            # Create a timestamp for error files
+            timestamp = time.strftime("%Y%m%d_%H%M%S")
+            
             if "No module named 'parler'" in str(e):
                 print("Parler TTS is not installed. Please install it with:")
                 print("pip install git+https://github.com/huggingface/parler-tts.git")
-                # Fall back to an empty audio file
-                timestamp = time.strftime("%Y%m%d_%H%M%S")
-                fallback_path = f"./resources/error_{timestamp}.mp3"
-                AudioSegment.silent(duration=1000).export(fallback_path, format="mp3")
-                return fallback_path
+                # Create an error file with instructions
+                error_path = f"./resources/error_missing_parler_{timestamp}.txt"
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    f.write("Error: Parler TTS module is not installed.\n\n")
+                    f.write("Please install it with:\n")
+                    f.write("pip install git+https://github.com/huggingface/parler-tts.git\n")
+                return error_path
+            elif "ffprobe" in str(e) or "ffmpeg" in str(e):
+                # FFmpeg/ffprobe not found
+                error_path = f"./resources/error_missing_ffmpeg_{timestamp}.txt"
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    f.write("Error: FFmpeg/ffprobe not found. Audio generation failed.\n\n")
+                    f.write("Please install FFmpeg to generate audio:\n")
+                    f.write("- Ubuntu/Debian: sudo apt-get install ffmpeg\n")
+                    f.write("- CentOS/RHEL: sudo yum install ffmpeg\n")
+                    f.write("- macOS: brew install ffmpeg\n")
+                    f.write("- Windows: Download from https://ffmpeg.org/download.html\n")
+                return error_path
             else:
-                raise
+                # General error
+                error_path = f"./resources/error_general_{timestamp}.txt"
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Error generating podcast: {str(e)}\n\n")
+                    f.write("Please check the logs for more details.")
+                return error_path
     
     def _generate_timing_summary(self) -> str:
         """Generate a summary of execution times."""

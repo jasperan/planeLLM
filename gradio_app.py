@@ -204,6 +204,10 @@ class PlaneLLMInterface:
                 else:
                     raise
             
+            # Check for FFmpeg
+            if not getattr(self.tts_generator, "ffmpeg_available", True):
+                return "", "Error: FFmpeg/ffprobe not found. Please install FFmpeg to generate audio. Ubuntu/Debian: sudo apt-get install ffmpeg"
+            
             # Generate timestamp for file naming
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             audio_file = f"podcast_{timestamp}.mp3"
@@ -218,14 +222,27 @@ class PlaneLLMInterface:
                     transcript = f.read()
                 
                 # Generate podcast audio - pass transcript text directly instead of file path
-                self.tts_generator.generate_podcast(transcript, output_path=audio_path)
+                result_path = self.tts_generator.generate_podcast(transcript, output_path=audio_path)
+                
+                # Check if the result is an error file
+                if result_path.endswith('.txt') and 'error' in result_path:
+                    with open(result_path, 'r', encoding='utf-8') as f:
+                        error_content = f.read()
+                    return "", f"Error: {error_content.splitlines()[0]}"
+                
+                # Update the audio_path with the actual result path
+                audio_path = result_path
             else:
                 return "", f"Error: Transcript file not found at {transcript_path}"
             
             progress(1.0, desc="Done!")
             self.update_available_files()
             
-            return audio_path, f"Podcast audio generated successfully and saved to {audio_file}"
+            # Check if the audio file was actually created
+            if os.path.exists(audio_path) and os.path.isfile(audio_path) and audio_path.endswith('.mp3'):
+                return audio_path, f"Podcast audio generated successfully and saved to {os.path.basename(audio_path)}"
+            else:
+                return "", f"Error: Failed to generate audio file. Please check the logs for details."
             
         except Exception as e:
             import traceback
@@ -238,8 +255,14 @@ class PlaneLLMInterface:
             elif "No module named" in str(e):
                 if "parler" in str(e).lower():
                     return "", "Error: Parler TTS module is not installed. Please run: pip install git+https://github.com/huggingface/parler-tts.git"
+                elif "ffmpeg" in str(e).lower() or "ffprobe" in str(e).lower():
+                    return "", "Error: FFmpeg/ffprobe not found. Please install FFmpeg to generate audio. Ubuntu/Debian: sudo apt-get install ffmpeg"
                 else:
                     return "", f"Error: Missing module - {str(e)}"
+            elif "ffprobe" in str(e) or "ffmpeg" in str(e):
+                return "", "Error: FFmpeg/ffprobe not found. Please install FFmpeg to generate audio. Ubuntu/Debian: sudo apt-get install ffmpeg"
+            elif "Is a directory" in str(e):
+                return "", "Error: Invalid output path. Please check if the resources directory exists and is writable."
             else:
                 return "", f"Error: {str(e)}"
 
