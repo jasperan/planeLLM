@@ -51,7 +51,7 @@ class PlaneLLMInterface:
         
         # Filter by type
         self.available_files = {
-            'content': [f for f in all_files if f.endswith('.txt') and 'raw_lesson' in f],
+            'content': [f for f in all_files if f.endswith('.txt') and ('content' in f or 'raw_lesson' in f)],
             'questions': [f for f in all_files if f.endswith('.txt') and 'questions' in f],
             'transcripts': [f for f in all_files if f.endswith('.txt') and 'podcast' in f],
             'audio': [f for f in all_files if f.endswith('.mp3')]
@@ -78,7 +78,7 @@ class PlaneLLMInterface:
             # Generate timestamp for file naming
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             questions_file = f"questions_{timestamp}.txt"
-            content_file = f"raw_lesson_content_{timestamp}.txt"
+            content_file = f"content_{timestamp}.txt"
             
             progress(0.1, desc="Generating questions...")
             questions = self.topic_explorer.generate_questions(topic)
@@ -102,7 +102,7 @@ class PlaneLLMInterface:
             # Combine content
             full_content = f"# {topic}\n\n"
             for question, response in results.items():
-                full_content += f"{response}\n\n"
+                full_content += f"# {question}\n\n{response}\n\n"
             
             # Save content to file
             with open(f"./resources/{content_file}", 'w', encoding='utf-8') as f:
@@ -116,11 +116,13 @@ class PlaneLLMInterface:
         except Exception as e:
             return "", "", f"Error: {str(e)}"
     
-    def create_podcast_transcript(self, content_file: str, progress=gr.Progress()) -> Tuple[str, str]:
+    def create_podcast_transcript(self, content_file: str, transcript_length: str, detailed_transcript: bool, progress=gr.Progress()) -> Tuple[str, str]:
         """Create podcast transcript from content file.
         
         Args:
             content_file: Name of content file to use
+            transcript_length: Length of transcript ("short", "medium", or "long")
+            detailed_transcript: Whether to process each question individually
             progress: Gradio progress indicator
             
         Returns:
@@ -134,18 +136,35 @@ class PlaneLLMInterface:
             
             # Generate timestamp for file naming
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            transcript_file = f"podcast_transcript_{timestamp}.txt"
             
             # Read content from file
             with open(f"./resources/{content_file}", 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            progress(0.2, desc="Generating podcast transcript...")
-            transcript = self.podcast_writer.create_podcast_transcript(content)
+            # Initialize podcast writer with specified length
+            self.podcast_writer = PodcastWriter(transcript_length=transcript_length)
             
-            # Save transcript to file
-            with open(f"./resources/{transcript_file}", 'w', encoding='utf-8') as f:
-                f.write(transcript)
+            if detailed_transcript:
+                progress(0.2, desc="Generating detailed podcast transcript (processing each question individually)...")
+                transcript = self.podcast_writer.create_detailed_podcast_transcript(content)
+                transcript_type = "detailed"
+            else:
+                progress(0.2, desc=f"Generating podcast transcript (length: {transcript_length})...")
+                transcript = self.podcast_writer.create_podcast_transcript(content)
+                transcript_type = "standard"
+            
+            # Transcript is saved by the PodcastWriter class
+            # Find the most recently created transcript file
+            transcript_files = [f for f in os.listdir('./resources') 
+                              if f.startswith('podcast_transcript_') and f.endswith(f'{timestamp}.txt')]
+            
+            if transcript_files:
+                transcript_file = transcript_files[0]
+            else:
+                # Fallback - save transcript to file
+                transcript_file = f"podcast_transcript_{transcript_type}_{timestamp}.txt"
+                with open(f"./resources/{transcript_file}", 'w', encoding='utf-8') as f:
+                    f.write(transcript)
             
             progress(1.0, desc="Done!")
             self.update_available_files()
@@ -183,8 +202,12 @@ class PlaneLLMInterface:
             
             progress(0.1, desc="Generating podcast audio...")
             
+            # Read transcript from file
+            with open(f"./resources/{transcript_file}", 'r', encoding='utf-8') as f:
+                transcript = f.read()
+            
             # Generate podcast audio
-            self.tts_generator.generate_podcast(f"./resources/{transcript_file}", output_path=audio_path)
+            self.tts_generator.generate_podcast(transcript, output_path=audio_path)
             
             progress(1.0, desc="Done!")
             self.update_available_files()
@@ -240,7 +263,23 @@ def create_interface():
                         interactive=True
                     )
                     refresh_content_button = gr.Button("Refresh Files")
-                    create_transcript_button = gr.Button("Create Transcript")
+                
+                with gr.Row():
+                    with gr.Column():
+                        transcript_length = gr.Radio(
+                            label="Transcript Length",
+                            choices=["short", "medium", "long"],
+                            value="medium",
+                            interactive=True
+                        )
+                    with gr.Column():
+                        detailed_transcript = gr.Checkbox(
+                            label="Detailed Processing",
+                            value=False,
+                            info="Process each question individually for more detailed content"
+                        )
+                
+                create_transcript_button = gr.Button("Create Transcript")
                 
                 transcript_output = gr.Textbox(label="Generated Transcript", lines=20, interactive=False)
                 transcript_status = gr.Textbox(label="Status", interactive=False)
@@ -254,7 +293,7 @@ def create_interface():
                 
                 create_transcript_button.click(
                     fn=interface.create_podcast_transcript,
-                    inputs=[content_file_dropdown],
+                    inputs=[content_file_dropdown, transcript_length, detailed_transcript],
                     outputs=[transcript_output, transcript_status]
                 )
             
@@ -272,15 +311,18 @@ def create_interface():
                     refresh_transcript_button = gr.Button("Refresh Files")
                 
                 with gr.Row():
-                    model_type_radio = gr.Radio(
+                    model_type = gr.Radio(
                         label="TTS Model",
                         choices=["bark", "parler"],
                         value="bark",
-                        info="Bark: Higher quality but slower | Parler: Faster but lower quality"
+                        info="Bark: Higher quality but slower, Parler: Faster but lower quality"
                     )
-                    generate_audio_button = gr.Button("Generate Audio")
                 
-                audio_output = gr.Audio(label="Generated Podcast", type="filepath")
+                generate_audio_button = gr.Button("Generate Audio")
+                
+                with gr.Row():
+                    audio_output = gr.Audio(label="Generated Audio", interactive=False)
+                
                 audio_status = gr.Textbox(label="Status", interactive=False)
                 
                 # Connect buttons to functions
@@ -292,16 +334,16 @@ def create_interface():
                 
                 generate_audio_button.click(
                     fn=interface.generate_podcast_audio,
-                    inputs=[transcript_file_dropdown, model_type_radio],
+                    inputs=[transcript_file_dropdown, model_type],
                     outputs=[audio_output, audio_status]
                 )
         
         # Add a footer
-        gr.Markdown("### planeLLM - Powered by OCI GenAI and Gradio")
+        gr.Markdown("---\n*planeLLM: Bite-sized podcasts to learn about anything powered by the OCI GenAI Service*")
     
     # Launch the interface
-    app.launch(share=True)
+    return app
 
 if __name__ == "__main__":
-    print("Starting planeLLM Gradio interface...")
-    create_interface() 
+    app = create_interface()
+    app.launch(share=False) 

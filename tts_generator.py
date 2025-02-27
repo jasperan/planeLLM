@@ -1,234 +1,345 @@
+#!/usr/bin/env python
 """
-Text-to-Speech Module for planeLLM.
+TTS Generator Module for planeLLM.
 
-This module converts podcast transcripts into audio using various TTS models.
-It currently supports two TTS engines:
-1. Bark (default): High-quality but slower
-2. Parler: Faster but lower quality
-
-The module handles speaker separation, audio segment generation, and final audio
-compilation with comprehensive error handling and progress tracking.
+This module handles the conversion of podcast transcripts into audio using
+various TTS models. It supports multiple TTS engines and handles speaker separation.
 
 Example:
     generator = TTSGenerator(model_type="bark")
     generator.generate_podcast("podcast_transcript.txt")
+    
+    # Or directly from transcript text:
+    generator.generate_podcast(transcript_text, output_path="podcast.mp3")
 """
 
 import warnings
 # Suppress all warnings
 warnings.filterwarnings('ignore')
 
-# Suppress specific PyTorch/transformers warnings
-import torch
-torch.set_warn_always(False)
-
-# Suppress Flash Attention 2 warning
 import os
+import torch
+# Suppress Flash Attention 2 warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
 
-from typing import Tuple, List, Optional, Dict
-import argparse
-from transformers import BarkModel, AutoProcessor, logging
-logging.set_verbosity_error()  # Only show errors, not warnings
-from parler_tts import ParlerTTSForConditionalGeneration
-import numpy as np
-from pydub import AudioSegment
-import io
-import os
-from tqdm import tqdm
 import time
+import yaml
+import re
+from typing import Dict, List, Optional, Union, Tuple
+from pydub import AudioSegment
+import tempfile
+import tqdm
 
 class TTSGenerator:
-    """Class for generating audio from podcast transcripts using various TTS models."""
+    """Class for generating podcast audio from transcripts."""
     
-    def __init__(self, model_type: str = "bark") -> None:
-        """Initialize TTSGenerator with specified model.
+    def __init__(self, model_type: str = "bark", config_file: str = 'config.yaml') -> None:
+        """Initialize the TTS generator.
         
         Args:
             model_type: Type of TTS model to use ('bark' or 'parler')
+            config_file: Path to configuration file
             
         Raises:
             ValueError: If model_type is not supported
-            RuntimeError: If model fails to load
         """
-        self.model_type = model_type
-        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.model_type = model_type.lower()
         
-        try:
-            if model_type == "bark":
-                self.model = BarkModel.from_pretrained("suno/bark")
-                self.processor = AutoProcessor.from_pretrained("suno/bark")
-                self.model.to(self.device)
-            elif model_type == "parler":
-                self.model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1")
-                self.model.to(self.device)
-            else:
-                raise ValueError(f"Unsupported model type: {model_type}")
-        except Exception as e:
-            raise RuntimeError(f"Failed to load {model_type} model: {str(e)}")
-            
-    def _numpy_to_audio_segment(self, audio_array: np.ndarray, sample_rate: int) -> AudioSegment:
-        """Convert numpy array to AudioSegment.
+        if self.model_type not in ["bark", "parler"]:
+            raise ValueError("Unsupported TTS model type. Choose 'bark' or 'parler'")
+        
+        # Load configuration
+        with open(config_file, 'r', encoding='utf-8') as file:
+            self.config = yaml.safe_load(file)
+        
+        # Initialize model-specific components
+        if self.model_type == "bark":
+            self._init_bark()
+        else:  # parler
+            self._init_parler()
+        
+        # Initialize execution time tracking
+        self.execution_times = {
+            'start_time': 0,
+            'total_time': 0,
+            'segments': []
+        }
+    
+    def _init_bark(self) -> None:
+        """Initialize the Bark TTS model."""
+        print("Initializing Bark TTS model...")
+        from transformers import AutoProcessor, BarkModel
+        
+        # Load model and processor
+        self.processor = AutoProcessor.from_pretrained("suno/bark")
+        self.model = BarkModel.from_pretrained("suno/bark")
+        
+        # Move model to GPU if available
+        if torch.cuda.is_available():
+            self.model = self.model.to("cuda")
+            print("Bark model loaded on GPU")
+        else:
+            print("Bark model loaded on CPU")
+        
+        # Define speaker presets
+        self.speakers = {
+            "Speaker 1": "v2/en_speaker_6",  # Male expert
+            "Speaker 2": "v2/en_speaker_9",  # Female student
+            "Speaker 3": "v2/en_speaker_3"   # Second expert
+        }
+    
+    def _init_parler(self) -> None:
+        """Initialize the Parler TTS model."""
+        print("Initializing Parler TTS model...")
+        from parler.tts import ParlerTTS
+        
+        # Initialize Parler TTS
+        self.model = ParlerTTS()
+        
+        # Define speaker presets (speaker IDs for Parler)
+        self.speakers = {
+            "Speaker 1": 0,  # Male expert
+            "Speaker 2": 1,  # Female student
+            "Speaker 3": 2   # Second expert
+        }
+    
+    def _generate_audio_bark(self, text: str, speaker: str) -> AudioSegment:
+        """Generate audio using Bark TTS.
         
         Args:
-            audio_array: Audio data as numpy array
-            sample_rate: Sample rate of the audio
+            text: Text to convert to speech
+            speaker: Speaker identifier
             
         Returns:
-            AudioSegment object
+            AudioSegment containing the generated speech
         """
-        # Normalize audio
-        audio_array = np.clip(audio_array, -1, 1)
-        audio_array = (audio_array * 32767).astype(np.int16)
+        # Prepare inputs
+        inputs = self.processor(
+            text=text,
+            voice_preset=self.speakers[speaker],
+            return_tensors="pt"
+        )
         
-        # Convert to bytes
-        byte_io = io.BytesIO()
-        import wave
-        with wave.open(byte_io, 'wb') as wave_file:
-            wave_file.setnchannels(1)
-            wave_file.setsampwidth(2)
-            wave_file.setframerate(sample_rate)
-            wave_file.writeframes(audio_array.tobytes())
+        # Move inputs to GPU if available
+        if torch.cuda.is_available():
+            inputs = {k: v.to("cuda") for k, v in inputs.items()}
         
-        byte_io.seek(0)
-        return AudioSegment.from_wav(byte_io)
-
-    def generate_speaker1_audio(self, text: str) -> tuple:
-        """Generate audio for speaker 1 (expert)."""
-        if self.model_type == "bark":
-            inputs = self.processor(
-                text,
-                voice_preset="v2/en_speaker_6",
-                return_tensors="pt"
-            ).to(self.device)
-            audio_array = self.model.generate(**inputs)
-            audio_array = audio_array.cpu().numpy().squeeze()
-            return audio_array, 24000
-        else:  # parler
-            description = "A male expert speaking clearly and confidently"
-            inputs = {"text": text, "description": description}
-            audio = self.model.generate(**inputs)
-            return audio.cpu().numpy().squeeze(), 24000
-
-    def generate_speaker2_audio(self, text: str) -> tuple:
-        """Generate audio for speaker 2 (student)."""
-        if self.model_type == "bark":
-            inputs = self.processor(
-                text,
-                voice_preset="v2/en_speaker_9",
-                return_tensors="pt"
-            ).to(self.device)
-            audio_array = self.model.generate(**inputs)
-            audio_array = audio_array.cpu().numpy().squeeze()
-            return audio_array, 24000
-        else:  # parler
-            description = "A curious young student speaking with enthusiasm"
-            inputs = {"text": text, "description": description}
-            audio = self.model.generate(**inputs)
-            return audio.cpu().numpy().squeeze(), 24000
-
-    def generate_podcast(self, transcript_path: str, output_path: str = None) -> None:
-        """Generate full podcast audio from transcript with custom output path.
+        # Generate audio
+        speech_output = self.model.generate(**inputs)
+        
+        # Convert to audio segment
+        audio_array = speech_output.cpu().numpy().squeeze()
+        
+        # Save to temporary file and load as AudioSegment
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        # Save as WAV
+        import scipy.io.wavfile as wavfile
+        wavfile.write(temp_path, rate=24000, data=audio_array)
+        
+        # Load as AudioSegment
+        audio_segment = AudioSegment.from_wav(temp_path)
+        
+        # Clean up temporary file
+        os.unlink(temp_path)
+        
+        return audio_segment
+    
+    def _generate_audio_parler(self, text: str, speaker: str) -> AudioSegment:
+        """Generate audio using Parler TTS.
         
         Args:
-            transcript_path: Path to the transcript file
-            output_path: Custom output path for the generated audio
+            text: Text to convert to speech
+            speaker: Speaker identifier
+            
+        Returns:
+            AudioSegment containing the generated speech
         """
-        print("\nStarting podcast generation...")
+        # Generate audio
+        audio_array = self.model.synthesize(
+            text=text,
+            speaker_id=self.speakers[speaker],
+            temperature=0.7
+        )
         
-        # Read the transcript
-        print("Reading transcript file...")
-        try:
-            with open(transcript_path, 'r', encoding='utf-8') as f:
-                transcript = f.read().strip()
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Transcript file not found: {transcript_path}")
-        except Exception as e:
-            raise Exception(f"Error reading transcript file: {str(e)}")
-
-        if not transcript:
-            raise ValueError("Transcript file is empty")
-
-        # Parse the transcript into speaker segments
-        print("Parsing transcript into speaker segments...")
+        # Save to temporary file and load as AudioSegment
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            temp_path = temp_file.name
+        
+        # Save as WAV
+        import scipy.io.wavfile as wavfile
+        wavfile.write(temp_path, rate=24000, data=audio_array)
+        
+        # Load as AudioSegment
+        audio_segment = AudioSegment.from_wav(temp_path)
+        
+        # Clean up temporary file
+        os.unlink(temp_path)
+        
+        return audio_segment
+    
+    def _parse_transcript(self, transcript: str) -> List[Tuple[str, str]]:
+        """Parse the transcript into speaker segments.
+        
+        Args:
+            transcript: The podcast transcript
+            
+        Returns:
+            List of (speaker, text) tuples
+        """
+        # Split transcript into lines
+        lines = transcript.strip().split('\n')
+        
         segments = []
         current_speaker = None
         current_text = []
         
-        # Split by lines and clean up
-        lines = [line.strip() for line in transcript.split('\n') if line.strip()]
-        
         for line in lines:
-            # Check for speaker markers with more flexible pattern matching
-            if 'Speaker 1:' in line or 'Speaker 2:' in line:
-                # Save previous segment if exists
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Check for speaker label
+            speaker_match = re.match(r'^(Speaker \d+):\s*(.*)', line)
+            if speaker_match:
+                # If we have accumulated text for a previous speaker, add it
                 if current_speaker and current_text:
                     segments.append((current_speaker, ' '.join(current_text)))
                 
-                # Start new segment
-                current_speaker = 'Speaker 1' if 'Speaker 1:' in line else 'Speaker 2'
-                current_text = [line.split(':', 1)[1].strip()]
-            elif current_speaker:  # Continuation of current speaker's text
-                current_text.append(line)
+                # Start new speaker segment
+                current_speaker = speaker_match.group(1)
+                current_text = [speaker_match.group(2)] if speaker_match.group(2) else []
+            else:
+                # Continue with current speaker
+                if current_speaker:
+                    current_text.append(line)
         
         # Add the last segment
         if current_speaker and current_text:
             segments.append((current_speaker, ' '.join(current_text)))
         
-        if not segments:
-            raise ValueError(
-                "No valid segments found in transcript. "
-                "Make sure the transcript contains 'Speaker 1:' or 'Speaker 2:' markers."
-            )
-
-        print(f"Found {len(segments)} segments to process")
-
-        # Generate audio for each segment
-        final_audio = None
+        return segments
+    
+    def generate_podcast(self, transcript: Union[str, os.PathLike], output_path: Optional[str] = None) -> str:
+        """Generate podcast audio from transcript.
         
-        for i, (speaker, text) in enumerate(tqdm(segments, desc="Generating podcast segments", unit="segment")):
-            print(f"\nProcessing segment {i+1}/{len(segments)} ({speaker})")
-            print(f"Text length: {len(text)} characters")
+        Args:
+            transcript: Either a path to a transcript file or the transcript text
+            output_path: Path to save the generated audio (default: auto-generated)
             
-            try:
-                if speaker == "Speaker 1":
-                    audio_arr, rate = self.generate_speaker1_audio(text)
-                else:  # Speaker 2
-                    audio_arr, rate = self.generate_speaker2_audio(text)
-                
-                # Convert to AudioSegment
-                audio_segment = self._numpy_to_audio_segment(audio_arr, rate)
-                
-                # Add to final audio
-                if final_audio is None:
-                    final_audio = audio_segment
+        Returns:
+            Path to the generated audio file
+        """
+        print(f"\nGenerating podcast audio using {self.model_type.upper()} model...")
+        
+        self.execution_times['start_time'] = time.time()
+        
+        # Determine if transcript is a file path or text
+        if isinstance(transcript, str) and os.path.isfile(transcript):
+            # It's a file path
+            print(f"Reading transcript from file: {transcript}")
+            with open(transcript, 'r', encoding='utf-8') as file:
+                transcript_text = file.read()
+        else:
+            # It's the transcript text
+            print("Using provided transcript text")
+            transcript_text = transcript
+        
+        # Parse transcript into speaker segments
+        segments = self._parse_transcript(transcript_text)
+        print(f"Parsed {len(segments)} speaker segments")
+        
+        # Generate audio for each segment
+        full_audio = AudioSegment.empty()
+        
+        for i, (speaker, text) in enumerate(tqdm.tqdm(segments, desc="Generating audio segments")):
+            start_time = time.time()
+            
+            print(f"\nProcessing segment {i+1}/{len(segments)}: {speaker} ({len(text)} chars)")
+            
+            # Split long text into smaller chunks (max 200 chars)
+            chunks = []
+            max_chunk_size = 200
+            
+            # Simple chunking by sentences
+            sentences = re.split(r'(?<=[.!?])\s+', text)
+            current_chunk = []
+            current_length = 0
+            
+            for sentence in sentences:
+                if current_length + len(sentence) > max_chunk_size and current_chunk:
+                    chunks.append(' '.join(current_chunk))
+                    current_chunk = [sentence]
+                    current_length = len(sentence)
                 else:
-                    final_audio = final_audio + audio_segment
-                    
-                print(f"Successfully processed segment {i+1}")
-            except Exception as e:
-                print(f"Error processing segment {i+1}: {str(e)}")
-                raise
-
-        if final_audio is None:
-            raise RuntimeError("Failed to generate any audio segments")
-
-        # Generate timestamp for file naming if no output path provided
+                    current_chunk.append(sentence)
+                    current_length += len(sentence)
+            
+            if current_chunk:
+                chunks.append(' '.join(current_chunk))
+            
+            # Generate audio for each chunk
+            segment_audio = AudioSegment.empty()
+            for j, chunk in enumerate(chunks):
+                print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
+                
+                # Generate audio based on model type
+                if self.model_type == "bark":
+                    chunk_audio = self._generate_audio_bark(chunk, speaker)
+                else:  # parler
+                    chunk_audio = self._generate_audio_parler(chunk, speaker)
+                
+                segment_audio += chunk_audio
+            
+            # Add a short pause between speakers (500ms)
+            pause = AudioSegment.silent(duration=500)
+            full_audio += segment_audio + pause
+            
+            # Track execution time
+            duration = time.time() - start_time
+            self.execution_times['segments'].append({
+                'speaker': speaker,
+                'text_length': len(text),
+                'duration': duration
+            })
+        
+        # Calculate total execution time
+        self.execution_times['total_time'] = time.time() - self.execution_times['start_time']
+        
+        # Generate output path if not provided
         if not output_path:
             timestamp = time.strftime("%Y%m%d_%H%M%S")
-            audio_file = f"podcast_{timestamp}.mp3"
-            output_path = f"./resources/{audio_file}"
+            output_path = f"./resources/podcast_{timestamp}.mp3"
         
-        # Ensure resources directory exists
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         
-        print("\nExporting final podcast...")
-        # Export the final podcast
-        final_audio.export(
-            output_path,
-            format="mp3",
-            bitrate="192k",
-            parameters=["-q:a", "0"]
-        )
-        print(f"Podcast exported successfully to {output_path}!") 
+        # Export as MP3
+        print(f"\nExporting podcast to {output_path}...")
+        full_audio.export(output_path, format="mp3")
+        
+        print(f"Podcast generated in {self.execution_times['total_time']:.2f} seconds")
+        print(f"Total audio duration: {len(full_audio)/1000:.2f} seconds")
+        
+        return output_path
+    
+    def _generate_timing_summary(self) -> str:
+        """Generate a summary of execution times."""
+        summary = ["=== Execution Time Summary ==="]
+        
+        # Get segment stats
+        total_segments = len(self.execution_times['segments'])
+        total_text_length = sum(segment['text_length'] for segment in self.execution_times['segments'])
+        total_segment_time = sum(segment['duration'] for segment in self.execution_times['segments'])
+        
+        summary.append("\nSegment Statistics:")
+        summary.append(f"  - Total Segments: {total_segments}")
+        summary.append(f"  - Total Text Length: {total_text_length} characters")
+        summary.append(f"  - Average Segment Length: {total_text_length/total_segments:.2f} characters")
+        summary.append(f"  - Total Segment Processing Time: {total_segment_time:.2f} seconds")
+        summary.append(f"  - Average Time per Segment: {total_segment_time/total_segments:.2f} seconds")
+        summary.append(f"Total Execution Time: {self.execution_times['total_time']:.2f} seconds")
+        
+        return "\n".join(summary) 
