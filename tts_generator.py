@@ -22,6 +22,8 @@ import torch
 # Suppress Flash Attention 2 warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
+# Suppress HF text generation warnings
+os.environ["HF_SUPPRESS_GENERATION_WARNINGS"] = "true"
 
 import time
 import yaml
@@ -157,12 +159,13 @@ class TTSGenerator:
                 inputs = {k: v.to("cuda") for k, v in inputs.items()}
             
             # Generate audio with specific generation parameters
+            # Use only max_new_tokens, not max_length to avoid the warning
             speech_output = self.model.generate(
                 **inputs,
                 pad_token_id=self.model.config.pad_token_id,
                 do_sample=True,
                 temperature=0.7,
-                max_length=256
+                max_new_tokens=250  # Use max_new_tokens instead of max_length
             )
             
             # Convert to audio segment
