@@ -215,11 +215,11 @@ def create_interface():
                 
                 with gr.Row():
                     with gr.Column():
-                        questions_output = gr.Textbox(label="Generated Questions", lines=10, readonly=True)
+                        questions_output = gr.Textbox(label="Generated Questions", lines=10, interactive=False)
                     with gr.Column():
-                        content_output = gr.Textbox(label="Generated Content", lines=20, readonly=True)
+                        content_output = gr.Textbox(label="Generated Content", lines=20, interactive=False)
                 
-                status_output = gr.Textbox(label="Status", readonly=True)
+                status_output = gr.Textbox(label="Status", interactive=False)
                 
                 # Connect the button to the function
                 generate_button.click(
@@ -242,8 +242,8 @@ def create_interface():
                     refresh_content_button = gr.Button("Refresh Files")
                     create_transcript_button = gr.Button("Create Transcript")
                 
-                transcript_output = gr.Textbox(label="Generated Transcript", lines=20, readonly=True)
-                transcript_status = gr.Textbox(label="Status", readonly=True)
+                transcript_output = gr.Textbox(label="Generated Transcript", lines=20, interactive=False)
+                transcript_status = gr.Textbox(label="Status", interactive=False)
                 
                 # Connect buttons to functions
                 refresh_content_button.click(
@@ -281,7 +281,7 @@ def create_interface():
                     generate_audio_button = gr.Button("Generate Audio")
                 
                 audio_output = gr.Audio(label="Generated Podcast", type="filepath")
-                audio_status = gr.Textbox(label="Status", readonly=True)
+                audio_status = gr.Textbox(label="Status", interactive=False)
                 
                 # Connect buttons to functions
                 refresh_transcript_button.click(

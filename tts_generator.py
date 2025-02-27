@@ -22,6 +22,11 @@ warnings.filterwarnings('ignore')
 import torch
 torch.set_warn_always(False)
 
+# Suppress Flash Attention 2 warning
+import os
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
+
 from typing import Tuple, List, Optional, Dict
 import argparse
 from transformers import BarkModel, AutoProcessor, logging
