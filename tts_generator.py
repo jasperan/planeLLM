@@ -218,8 +218,7 @@ class TTSGenerator:
             generation_kwargs = {
                 "pad_token_id": self.model.config.pad_token_id,
                 "do_sample": True,
-                "temperature": 0.7,
-                "max_new_tokens": 250
+                "temperature": 0.7
             }
             
             # IMPORTANT: Check if max_new_tokens is already in the inputs
