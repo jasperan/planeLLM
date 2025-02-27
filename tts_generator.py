@@ -113,7 +113,11 @@ class TTSGenerator:
         """Initialize the Parler TTS model."""
         print("Initializing Parler TTS model...")
         try:
-            from parler.tts import ParlerTTS
+            # Try both import paths for compatibility
+            try:
+                from parler_tts import ParlerTTS
+            except ImportError:
+                from parler.tts import ParlerTTS
             
             # Initialize Parler TTS
             self.model = ParlerTTS()
@@ -196,14 +200,22 @@ class TTSGenerator:
                 inputs = {k: v.to("cuda") for k, v in inputs.items()}
             
             # Generate audio with specific generation parameters
-            # Use only max_new_tokens, not max_length to avoid the warning
-            speech_output = self.model.generate(
-                **inputs,
-                pad_token_id=self.model.config.pad_token_id,
-                do_sample=True,
-                temperature=0.7,
-                max_new_tokens=250  # Use max_new_tokens instead of max_length
-            )
+            generation_kwargs = {
+                "pad_token_id": self.model.config.pad_token_id,
+                "do_sample": True,
+                "temperature": 0.7,
+                "max_new_tokens": 250
+            }
+            
+            # Make a clean copy of inputs without any generation parameters
+            # to avoid conflicts with generation_kwargs
+            model_inputs = {}
+            for k, v in inputs.items():
+                if k not in ["max_new_tokens", "do_sample", "temperature", "pad_token_id"]:
+                    model_inputs[k] = v
+            
+            # Generate the audio
+            speech_output = self.model.generate(**model_inputs, **generation_kwargs)
             
             # Convert to audio segment
             audio_array = speech_output.cpu().numpy().squeeze()
