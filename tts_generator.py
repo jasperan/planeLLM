@@ -215,9 +215,10 @@ class TTSGenerator:
                 inputs = {k: v.to("cuda") for k, v in inputs.items()}
             
             # Generate audio with specific generation parameters
+            # note to self: do_sample Effect on voices: When True, introduces randomness in voice generation, making each generation slightly different
             generation_kwargs = {
                 "pad_token_id": self.model.config.pad_token_id,
-                "do_sample": True,
+                "do_sample": False,
                 "temperature": 0.01
             }
             
@@ -690,4 +691,5 @@ class TTSGenerator:
         summary.append(f"  - Average Time per Segment: {total_segment_time/total_segments:.2f} seconds")
         summary.append(f"Total Execution Time: {self.execution_times['total_time']:.2f} seconds")
         
+        return "\n".join(summary) 
         return "\n".join(summary) 
