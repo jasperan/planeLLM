@@ -92,17 +92,26 @@ class TTSGenerator:
     def _init_parler(self) -> None:
         """Initialize the Parler TTS model."""
         print("Initializing Parler TTS model...")
-        from parler.tts import ParlerTTS
-        
-        # Initialize Parler TTS
-        self.model = ParlerTTS()
-        
-        # Define speaker presets (speaker IDs for Parler)
-        self.speakers = {
-            "Speaker 1": 0,  # Male expert
-            "Speaker 2": 1,  # Female student
-            "Speaker 3": 2   # Second expert
-        }
+        try:
+            from parler.tts import ParlerTTS
+            
+            # Initialize Parler TTS
+            self.model = ParlerTTS()
+            
+            # Define speaker presets (speaker IDs for Parler)
+            self.speakers = {
+                "Speaker 1": 0,  # Male expert
+                "Speaker 2": 1,  # Female student
+                "Speaker 3": 2   # Second expert
+            }
+            self.parler_available = True
+        except ImportError:
+            print("WARNING: Parler TTS module not found. Using fallback TTS instead.")
+            print("To install Parler TTS, run: pip install git+https://github.com/huggingface/parler-tts.git")
+            # Fall back to Bark if Parler is not available
+            self.model_type = "bark"
+            self._init_bark()
+            self.parler_available = False
     
     def _generate_audio_bark(self, text: str, speaker: str) -> AudioSegment:
         """Generate audio using Bark TTS.
@@ -241,113 +250,138 @@ class TTSGenerator:
         
         self.execution_times['start_time'] = time.time()
         
-        # Determine if transcript is a file path or text
-        if isinstance(transcript, str) and os.path.exists(transcript) and os.path.isfile(transcript):
-            # It's a file path
-            print(f"Reading transcript from file: {transcript}")
-            with open(transcript, 'r', encoding='utf-8') as file:
-                transcript_text = file.read()
-        else:
-            # It's the transcript text
-            print("Using provided transcript text")
-            transcript_text = transcript
-        
-        # Parse transcript into speaker segments
-        segments = self._parse_transcript(transcript_text)
-        print(f"Parsed {len(segments)} speaker segments")
-        
-        # Generate audio for each segment
-        full_audio = AudioSegment.empty()
-        
-        for i, (speaker, text) in enumerate(tqdm.tqdm(segments, desc="Generating audio segments")):
-            start_time = time.time()
+        try:
+            # Determine if transcript is a file path or text
+            if isinstance(transcript, str) and os.path.exists(transcript) and os.path.isfile(transcript):
+                # It's a file path
+                print(f"Reading transcript from file: {transcript}")
+                with open(transcript, 'r', encoding='utf-8') as file:
+                    transcript_text = file.read()
+            else:
+                # It's the transcript text
+                print("Using provided transcript text")
+                transcript_text = transcript
             
-            print(f"\nProcessing segment {i+1}/{len(segments)}: {speaker} ({len(text)} chars)")
+            # Parse transcript into speaker segments
+            segments = self._parse_transcript(transcript_text)
+            print(f"Parsed {len(segments)} speaker segments")
             
-            # Split long text into smaller chunks (max 200 chars)
-            chunks = []
-            max_chunk_size = 150  # Reduced from 200 to ensure better handling
+            # Generate audio for each segment
+            full_audio = AudioSegment.empty()
             
-            # Improved chunking by sentences
-            sentences = re.split(r'(?<=[.!?])\s+', text)
-            current_chunk = []
-            current_length = 0
-            
-            for sentence in sentences:
-                # Skip empty sentences
-                if not sentence.strip():
-                    continue
-                    
-                # If this sentence alone is longer than max_chunk_size, split it further
-                if len(sentence) > max_chunk_size:
-                    # Split by commas or other natural pauses
-                    sub_parts = re.split(r'(?<=[,;:])\s+', sentence)
-                    for part in sub_parts:
-                        if len(part) > max_chunk_size:
-                            # If still too long, just add it as is - TTS will have to handle it
-                            chunks.append(part)
-                        elif current_length + len(part) > max_chunk_size and current_chunk:
-                            chunks.append(' '.join(current_chunk))
-                            current_chunk = [part]
-                            current_length = len(part)
-                        else:
-                            current_chunk.append(part)
-                            current_length += len(part)
-                elif current_length + len(sentence) > max_chunk_size and current_chunk:
+            for i, (speaker, text) in enumerate(tqdm.tqdm(segments, desc="Generating audio segments")):
+                start_time = time.time()
+                
+                print(f"\nProcessing segment {i+1}/{len(segments)}: {speaker} ({len(text)} chars)")
+                
+                # Split long text into smaller chunks (max 200 chars)
+                chunks = []
+                max_chunk_size = 150  # Reduced from 200 to ensure better handling
+                
+                # Improved chunking by sentences
+                sentences = re.split(r'(?<=[.!?])\s+', text)
+                current_chunk = []
+                current_length = 0
+                
+                for sentence in sentences:
+                    # Skip empty sentences
+                    if not sentence.strip():
+                        continue
+                        
+                    # If this sentence alone is longer than max_chunk_size, split it further
+                    if len(sentence) > max_chunk_size:
+                        # Split by commas or other natural pauses
+                        sub_parts = re.split(r'(?<=[,;:])\s+', sentence)
+                        for part in sub_parts:
+                            if len(part) > max_chunk_size:
+                                # If still too long, just add it as is - TTS will have to handle it
+                                chunks.append(part)
+                            elif current_length + len(part) > max_chunk_size and current_chunk:
+                                chunks.append(' '.join(current_chunk))
+                                current_chunk = [part]
+                                current_length = len(part)
+                            else:
+                                current_chunk.append(part)
+                                current_length += len(part)
+                    elif current_length + len(sentence) > max_chunk_size and current_chunk:
+                        chunks.append(' '.join(current_chunk))
+                        current_chunk = [sentence]
+                        current_length = len(sentence)
+                    else:
+                        current_chunk.append(sentence)
+                        current_length += len(sentence)
+                
+                if current_chunk:
                     chunks.append(' '.join(current_chunk))
-                    current_chunk = [sentence]
-                    current_length = len(sentence)
+                
+                # Generate audio for each chunk
+                segment_audio = AudioSegment.empty()
+                for j, chunk in enumerate(chunks):
+                    print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
+                    
+                    # Generate audio based on model type
+                    if self.model_type == "bark":
+                        chunk_audio = self._generate_audio_bark(chunk, speaker)
+                    else:  # parler
+                        chunk_audio = self._generate_audio_parler(chunk, speaker)
+                    
+                    segment_audio += chunk_audio
+                
+                # Add a short pause between speakers (500ms)
+                pause = AudioSegment.silent(duration=500)
+                full_audio += segment_audio + pause
+                
+                # Track execution time
+                duration = time.time() - start_time
+                self.execution_times['segments'].append({
+                    'speaker': speaker,
+                    'text_length': len(text),
+                    'duration': duration
+                })
+            
+            # Calculate total execution time
+            self.execution_times['total_time'] = time.time() - self.execution_times['start_time']
+            
+            # Generate output path if not provided
+            if not output_path:
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                output_path = f"./resources/podcast_{timestamp}.mp3"
+            
+            # Ensure directory exists
+            os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+            
+            # Export as MP3
+            print(f"\nExporting podcast to {output_path}...")
+            try:
+                full_audio.export(output_path, format="mp3")
+            except Exception as e:
+                print(f"Error exporting audio: {str(e)}")
+                # Try with a different filename if permission error
+                if "Permission denied" in str(e):
+                    alt_output_path = f"./resources/podcast_alt_{timestamp}.mp3"
+                    print(f"Trying alternative path: {alt_output_path}")
+                    full_audio.export(alt_output_path, format="mp3")
+                    output_path = alt_output_path
                 else:
-                    current_chunk.append(sentence)
-                    current_length += len(sentence)
+                    raise
             
-            if current_chunk:
-                chunks.append(' '.join(current_chunk))
+            print(f"Podcast generated in {self.execution_times['total_time']:.2f} seconds")
+            print(f"Total audio duration: {len(full_audio)/1000:.2f} seconds")
             
-            # Generate audio for each chunk
-            segment_audio = AudioSegment.empty()
-            for j, chunk in enumerate(chunks):
-                print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
-                
-                # Generate audio based on model type
-                if self.model_type == "bark":
-                    chunk_audio = self._generate_audio_bark(chunk, speaker)
-                else:  # parler
-                    chunk_audio = self._generate_audio_parler(chunk, speaker)
-                
-                segment_audio += chunk_audio
+            return output_path
             
-            # Add a short pause between speakers (500ms)
-            pause = AudioSegment.silent(duration=500)
-            full_audio += segment_audio + pause
-            
-            # Track execution time
-            duration = time.time() - start_time
-            self.execution_times['segments'].append({
-                'speaker': speaker,
-                'text_length': len(text),
-                'duration': duration
-            })
-        
-        # Calculate total execution time
-        self.execution_times['total_time'] = time.time() - self.execution_times['start_time']
-        
-        # Generate output path if not provided
-        if not output_path:
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            output_path = f"./resources/podcast_{timestamp}.mp3"
-        
-        # Ensure directory exists
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        
-        # Export as MP3
-        print(f"\nExporting podcast to {output_path}...")
-        full_audio.export(output_path, format="mp3")
-        
-        print(f"Podcast generated in {self.execution_times['total_time']:.2f} seconds")
-        print(f"Total audio duration: {len(full_audio)/1000:.2f} seconds")
-        
-        return output_path
+        except Exception as e:
+            print(f"Error in generate_podcast: {str(e)}")
+            if "No module named 'parler'" in str(e):
+                print("Parler TTS is not installed. Please install it with:")
+                print("pip install git+https://github.com/huggingface/parler-tts.git")
+                # Fall back to an empty audio file
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                fallback_path = f"./resources/error_{timestamp}.mp3"
+                AudioSegment.silent(duration=1000).export(fallback_path, format="mp3")
+                return fallback_path
+            else:
+                raise
     
     def _generate_timing_summary(self) -> str:
         """Generate a summary of execution times."""

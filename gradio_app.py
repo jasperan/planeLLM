@@ -191,8 +191,18 @@ class PlaneLLMInterface:
             progress(0, desc=f"Initializing {model_type} model...")
             
             # Initialize TTS generator if needed
-            if self.tts_generator is None or self.tts_generator.model_type != model_type:
-                self.tts_generator = TTSGenerator(model_type=model_type)
+            try:
+                if self.tts_generator is None or self.tts_generator.model_type != model_type:
+                    self.tts_generator = TTSGenerator(model_type=model_type)
+                    
+                    # Check if Parler was requested but fell back to Bark
+                    if model_type == "parler" and not getattr(self.tts_generator, "parler_available", False):
+                        progress(0.05, desc="Parler TTS not available, using Bark as fallback...")
+            except ImportError as e:
+                if "parler" in str(e).lower():
+                    return "", "Error: Parler TTS module is not installed. Please run: pip install git+https://github.com/huggingface/parler-tts.git"
+                else:
+                    raise
             
             # Generate timestamp for file naming
             timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -207,7 +217,7 @@ class PlaneLLMInterface:
                 with open(transcript_path, 'r', encoding='utf-8') as f:
                     transcript = f.read()
                 
-                # Generate podcast audio
+                # Generate podcast audio - pass transcript text directly instead of file path
                 self.tts_generator.generate_podcast(transcript, output_path=audio_path)
             else:
                 return "", f"Error: Transcript file not found at {transcript_path}"
@@ -221,7 +231,17 @@ class PlaneLLMInterface:
             import traceback
             error_details = traceback.format_exc()
             print(f"Error generating podcast audio: {error_details}")
-            return "", f"Error: {str(e)}"
+            
+            # Provide more helpful error messages
+            if "Permission denied" in str(e):
+                return "", "Error: Permission denied. Please check if the output file is open in another program."
+            elif "No module named" in str(e):
+                if "parler" in str(e).lower():
+                    return "", "Error: Parler TTS module is not installed. Please run: pip install git+https://github.com/huggingface/parler-tts.git"
+                else:
+                    return "", f"Error: Missing module - {str(e)}"
+            else:
+                return "", f"Error: {str(e)}"
 
 def create_interface():
     """Create and launch the Gradio interface."""
