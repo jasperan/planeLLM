@@ -116,12 +116,11 @@ class PlaneLLMInterface:
         except Exception as e:
             return "", "", f"Error: {str(e)}"
     
-    def create_podcast_transcript(self, content_file: str, transcript_length: str, detailed_transcript: bool, progress=gr.Progress()) -> Tuple[str, str]:
+    def create_podcast_transcript(self, content_file: str, detailed_transcript: bool, progress=gr.Progress()) -> Tuple[str, str]:
         """Create podcast transcript from content file.
         
         Args:
             content_file: Name of content file to use
-            transcript_length: Length of transcript ("short", "medium", or "long")
             detailed_transcript: Whether to process each question individually
             progress: Gradio progress indicator
             
@@ -141,15 +140,15 @@ class PlaneLLMInterface:
             with open(f"./resources/{content_file}", 'r', encoding='utf-8') as f:
                 content = f.read()
             
-            # Initialize podcast writer with specified length
-            self.podcast_writer = PodcastWriter(transcript_length=transcript_length)
+            # Initialize podcast writer
+            self.podcast_writer = PodcastWriter()
             
             if detailed_transcript:
                 progress(0.2, desc="Generating detailed podcast transcript (processing each question individually)...")
                 transcript = self.podcast_writer.create_detailed_podcast_transcript(content)
                 transcript_type = "detailed"
             else:
-                progress(0.2, desc=f"Generating podcast transcript (length: {transcript_length})...")
+                progress(0.2, desc="Generating standard podcast transcript...")
                 transcript = self.podcast_writer.create_podcast_transcript(content)
                 transcript_type = "standard"
             
@@ -272,19 +271,11 @@ def create_interface():
                     refresh_content_button = gr.Button("Refresh Files")
                 
                 with gr.Row():
-                    with gr.Column():
-                        transcript_length = gr.Radio(
-                            label="Transcript Length",
-                            choices=["short", "medium", "long"],
-                            value="medium",
-                            interactive=True
-                        )
-                    with gr.Column():
-                        detailed_transcript = gr.Checkbox(
-                            label="Detailed Processing",
-                            value=False,
-                            info="Process each question individually for more detailed content"
-                        )
+                    detailed_transcript = gr.Checkbox(
+                        label="Detailed Processing",
+                        value=True,
+                        info="Process each question individually for more detailed content (recommended)"
+                    )
                 
                 create_transcript_button = gr.Button("Create Transcript")
                 
@@ -300,7 +291,7 @@ def create_interface():
                 
                 create_transcript_button.click(
                     fn=interface.create_podcast_transcript,
-                    inputs=[content_file_dropdown, transcript_length, detailed_transcript],
+                    inputs=[content_file_dropdown, detailed_transcript],
                     outputs=[transcript_output, transcript_status]
                 )
             
