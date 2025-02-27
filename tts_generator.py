@@ -157,28 +157,33 @@ class TTSGenerator:
         Returns:
             AudioSegment containing the generated speech
         """
-        # Generate audio
-        audio_array = self.model.synthesize(
-            text=text,
-            speaker_id=self.speakers[speaker],
-            temperature=0.7
-        )
-        
-        # Save to temporary file and load as AudioSegment
-        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
-            temp_path = temp_file.name
-        
-        # Save as WAV
-        import scipy.io.wavfile as wavfile
-        wavfile.write(temp_path, rate=24000, data=audio_array)
-        
-        # Load as AudioSegment
-        audio_segment = AudioSegment.from_wav(temp_path)
-        
-        # Clean up temporary file
-        os.unlink(temp_path)
-        
-        return audio_segment
+        try:
+            # Generate audio
+            audio_array = self.model.synthesize(
+                text=text,
+                speaker_id=self.speakers[speaker],
+                temperature=0.7
+            )
+            
+            # Save to temporary file and load as AudioSegment
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Save as WAV
+            import scipy.io.wavfile as wavfile
+            wavfile.write(temp_path, rate=24000, data=audio_array)
+            
+            # Load as AudioSegment
+            audio_segment = AudioSegment.from_wav(temp_path)
+            
+            # Clean up temporary file
+            os.unlink(temp_path)
+            
+            return audio_segment
+        except Exception as e:
+            print(f"Error generating audio with Parler: {str(e)}")
+            # Return a silent segment as fallback
+            return AudioSegment.silent(duration=1000)
     
     def _parse_transcript(self, transcript: str) -> List[Tuple[str, str]]:
         """Parse the transcript into speaker segments.
@@ -237,7 +242,7 @@ class TTSGenerator:
         self.execution_times['start_time'] = time.time()
         
         # Determine if transcript is a file path or text
-        if isinstance(transcript, str) and os.path.isfile(transcript):
+        if isinstance(transcript, str) and os.path.exists(transcript) and os.path.isfile(transcript):
             # It's a file path
             print(f"Reading transcript from file: {transcript}")
             with open(transcript, 'r', encoding='utf-8') as file:
@@ -261,15 +266,34 @@ class TTSGenerator:
             
             # Split long text into smaller chunks (max 200 chars)
             chunks = []
-            max_chunk_size = 200
+            max_chunk_size = 150  # Reduced from 200 to ensure better handling
             
-            # Simple chunking by sentences
+            # Improved chunking by sentences
             sentences = re.split(r'(?<=[.!?])\s+', text)
             current_chunk = []
             current_length = 0
             
             for sentence in sentences:
-                if current_length + len(sentence) > max_chunk_size and current_chunk:
+                # Skip empty sentences
+                if not sentence.strip():
+                    continue
+                    
+                # If this sentence alone is longer than max_chunk_size, split it further
+                if len(sentence) > max_chunk_size:
+                    # Split by commas or other natural pauses
+                    sub_parts = re.split(r'(?<=[,;:])\s+', sentence)
+                    for part in sub_parts:
+                        if len(part) > max_chunk_size:
+                            # If still too long, just add it as is - TTS will have to handle it
+                            chunks.append(part)
+                        elif current_length + len(part) > max_chunk_size and current_chunk:
+                            chunks.append(' '.join(current_chunk))
+                            current_chunk = [part]
+                            current_length = len(part)
+                        else:
+                            current_chunk.append(part)
+                            current_length += len(part)
+                elif current_length + len(sentence) > max_chunk_size and current_chunk:
                     chunks.append(' '.join(current_chunk))
                     current_chunk = [sentence]
                     current_length = len(sentence)

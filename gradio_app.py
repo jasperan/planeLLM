@@ -203,11 +203,15 @@ class PlaneLLMInterface:
             progress(0.1, desc="Generating podcast audio...")
             
             # Read transcript from file
-            with open(f"./resources/{transcript_file}", 'r', encoding='utf-8') as f:
-                transcript = f.read()
-            
-            # Generate podcast audio
-            self.tts_generator.generate_podcast(transcript, output_path=audio_path)
+            transcript_path = f"./resources/{transcript_file}"
+            if os.path.exists(transcript_path) and os.path.isfile(transcript_path):
+                with open(transcript_path, 'r', encoding='utf-8') as f:
+                    transcript = f.read()
+                
+                # Generate podcast audio
+                self.tts_generator.generate_podcast(transcript, output_path=audio_path)
+            else:
+                return "", f"Error: Transcript file not found at {transcript_path}"
             
             progress(1.0, desc="Done!")
             self.update_available_files()
@@ -215,6 +219,9 @@ class PlaneLLMInterface:
             return audio_path, f"Podcast audio generated successfully and saved to {audio_file}"
             
         except Exception as e:
+            import traceback
+            error_details = traceback.format_exc()
+            print(f"Error generating podcast audio: {error_details}")
             return "", f"Error: {str(e)}"
 
 def create_interface():
