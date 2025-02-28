@@ -75,6 +75,10 @@ Here's a list of features for the Gradio interface:
 - **TTS model selection** between Bark (higher quality), Parler (faster), and Coqui (high quality with natural intonation)
 - **Real-time feedback** on generation progress
 
+You can check out the result of using the Gradio interface in this audio file:
+
+[Sample audio output](./outputs/podcast_example_output.mp3)
+
 #### Topic Explorer
 
 This tab allows you to:
@@ -104,6 +108,8 @@ This tab allows you to:
 - Generate audio from the transcript
 - Play the generated audio directly in the browser
 - Save the audio to an MP3 file with a timestamp
+
+<img src="img/tts_generation.png" alt="TTS Generator" width="100%">
 
 #### File Management
 
