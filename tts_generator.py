@@ -550,13 +550,20 @@ class TTSGenerator:
                 # Ensure consistent voice for each speaker
                 if speaker not in speaker_voices:
                     # First time seeing this speaker, assign a voice
-                    voice = self.speakers.get(speaker, 'default')
+                    if self.model_type == "bark":
+                        voice = self.speakers.get(speaker, 'default')
+                    elif self.model_type == "parler":
+                        voice_type = self.speaker_voice_map.get(speaker, "male_clear")
+                        voice = voice_type
+                    else:  # coqui
+                        voice = self.speakers.get(speaker, 'default')
+                    
                     speaker_voices[speaker] = voice
-                    print(f"  Assigned voice preset for {speaker}: {voice}")
+                    print(f"  Assigned voice for {speaker}: {voice}")
                 else:
                     # Use the previously assigned voice
                     voice = speaker_voices[speaker]
-                    print(f"  Using consistent voice preset for {speaker}: {voice}")
+                    print(f"  Using consistent voice for {speaker}: {voice}")
                 
                 # Split long text into smaller chunks (max 150 chars)
                 chunks = []
@@ -609,7 +616,7 @@ class TTSGenerator:
                     has_laugh = '[laughs]' in chunk or '[chuckles]' in chunk
                     has_pause = '[pauses]' in chunk or '[sighs]' in chunk
                     
-                    # Generate audio based on model type - passing the same speaker for all chunks
+                    # Generate audio based on model type
                     if self.model_type == "bark":
                         chunk_audio = self._generate_audio_bark(chunk, speaker)
                     elif self.model_type == "parler":
@@ -694,6 +701,14 @@ class TTSGenerator:
                         f.write("- macOS: brew install ffmpeg\n")
                         f.write("- Windows: Download from https://ffmpeg.org/download.html\n")
                     output_path = error_path
+                elif "Is a directory" in str(e):
+                    # Handle directory error
+                    error_path = f"./resources/error_directory_{timestamp}.txt"
+                    with open(error_path, 'w', encoding='utf-8') as f:
+                        f.write(f"Error: Output path is a directory, not a file.\n\n")
+                        f.write(f"Original error: {str(e)}\n")
+                        f.write(f"Please provide a valid file path for the output.")
+                    output_path = error_path
                 else:
                     # Other errors
                     error_path = f"./resources/error_general_{timestamp}.txt"
@@ -734,6 +749,14 @@ class TTSGenerator:
                     f.write("- CentOS/RHEL: sudo yum install ffmpeg\n")
                     f.write("- macOS: brew install ffmpeg\n")
                     f.write("- Windows: Download from https://ffmpeg.org/download.html\n")
+                return error_path
+            elif "Is a directory" in str(e):
+                # Handle directory error
+                error_path = f"./resources/error_directory_{timestamp}.txt"
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Error: Output path is a directory, not a file.\n\n")
+                    f.write(f"Original error: {str(e)}\n")
+                    f.write(f"Please provide a valid file path for the output.")
                 return error_path
             else:
                 # General error

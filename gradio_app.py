@@ -251,7 +251,7 @@ class PlaneLLMInterface:
                 result_path = self.tts_generator.generate_podcast(transcript, output_path=audio_path)
                 
                 # Check if the result is an error file
-                if result_path.endswith('.txt') and 'error' in result_path:
+                if isinstance(result_path, str) and result_path.endswith('.txt') and 'error' in result_path:
                     with open(result_path, 'r', encoding='utf-8') as f:
                         error_content = f.read()
                     return "", f"Error: {error_content.splitlines()[0]}"
@@ -265,7 +265,7 @@ class PlaneLLMInterface:
             self.update_available_files()
             
             # Check if the audio file was actually created
-            if os.path.exists(audio_path) and os.path.isfile(audio_path) and audio_path.endswith('.mp3'):
+            if isinstance(audio_path, str) and os.path.exists(audio_path) and os.path.isfile(audio_path) and audio_path.endswith('.mp3'):
                 return audio_path, f"Podcast audio generated successfully and saved to {os.path.basename(audio_path)}"
             else:
                 return "", f"Error: Failed to generate audio file. Please check the logs for details."
