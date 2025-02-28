@@ -360,29 +360,101 @@ class TTSGenerator:
             input_ids = input_ids.to(device)
             prompt_input_ids = prompt_input_ids.to(device)
             
-            # Generate audio with Parler TTS
-            generation = self.parler_model.generate(
-                input_ids=input_ids, 
-                prompt_input_ids=prompt_input_ids,
-                do_sample=False,  # Deterministic generation for consistency
-                max_length=None   # Allow the model to determine the appropriate length
-            )
+            # Fix for tensor size mismatch error
+            # The error "The size of tensor a (20) must match the size of tensor b (21) at non-singleton dimension 1"
+            # occurs when the model expects inputs of the same sequence length
             
-            # Convert to numpy array
-            audio_array = generation.cpu().numpy().squeeze()
+            # Method 1: Use the model's generate_with_text method if available
+            try:
+                # Try to use the direct text-based generation method if available
+                if hasattr(self.parler_model, 'generate_with_text'):
+                    audio_array = self.parler_model.generate_with_text(
+                        description_text=description,
+                        prompt_text=text,
+                        do_sample=False  # Deterministic generation for consistency
+                    ).cpu().numpy().squeeze()
+                else:
+                    # Method 2: Use the tokenizer's padding feature to ensure same sequence length
+                    # Re-tokenize with padding to ensure same sequence length
+                    tokenizer_output = self.parler_tokenizer(
+                        [description, text],
+                        return_tensors="pt",
+                        padding=True,
+                        truncation=True,
+                        max_length=512  # Set a reasonable max length
+                    )
+                    
+                    # Extract the padded input_ids for both sequences
+                    padded_input_ids = tokenizer_output.input_ids
+                    description_input_ids = padded_input_ids[0:1]  # First sequence
+                    text_input_ids = padded_input_ids[1:2]  # Second sequence
+                    
+                    # Move to device
+                    description_input_ids = description_input_ids.to(device)
+                    text_input_ids = text_input_ids.to(device)
+                    
+                    # Generate audio
+                    generation = self.parler_model.generate(
+                        input_ids=description_input_ids,
+                        prompt_input_ids=text_input_ids,
+                        do_sample=False  # Deterministic generation for consistency
+                    )
+                    
+                    # Convert to numpy array
+                    audio_array = generation.cpu().numpy().squeeze()
+            except Exception as inner_e:
+                # Method 3: Fallback to using the model directly with the text
+                print(f"Warning: First generation method failed: {str(inner_e)}")
+                print("Trying alternative generation method...")
+                
+                # Try a different approach - use the model's forward method directly
+                try:
+                    # Process the text directly with the model's text processor if available
+                    if hasattr(self.parler_model, 'process_text'):
+                        audio_array = self.parler_model.process_text(
+                            description=description,
+                            text=text
+                        ).cpu().numpy().squeeze()
+                    else:
+                        # Last resort: Use a simpler voice description that might be more compatible
+                        simplified_description = f"{voice_type.split('_')[0]} voice with clear audio"
+                        simple_input_ids = self.parler_tokenizer(simplified_description, return_tensors="pt").input_ids.to(device)
+                        
+                        # Try with simplified description
+                        generation = self.parler_model.generate(
+                            input_ids=simple_input_ids,
+                            prompt_input_ids=prompt_input_ids,
+                            do_sample=True,  # Use sampling as a fallback
+                            temperature=0.5  # Moderate temperature
+                        )
+                        audio_array = generation.cpu().numpy().squeeze()
+                except Exception as final_e:
+                    print(f"Error: All generation methods failed. Last error: {str(final_e)}")
+                    # Create a beep sound to indicate the error
+                    sample_rate = self.sample_rate
+                    duration_ms = 500
+                    t = np.linspace(0, duration_ms/1000, int(sample_rate * duration_ms/1000), False)
+                    audio_array = np.sin(2 * np.pi * 440 * t) * 0.3  # 440 Hz sine wave
             
             # Check if audio array contains only zeros or very low values (silent audio)
             if np.max(np.abs(audio_array)) < 0.01:
                 print(f"Warning: Generated audio for '{text[:30]}...' appears to be silent. Retrying...")
                 
                 # Retry with slightly different parameters
-                generation = self.parler_model.generate(
-                    input_ids=input_ids, 
-                    prompt_input_ids=prompt_input_ids,
-                    do_sample=True,  # Use sampling for retry
-                    temperature=0.5  # Moderate temperature
-                )
-                audio_array = generation.cpu().numpy().squeeze()
+                try:
+                    # Try with a different voice description
+                    alt_description = f"A {voice_type.split('_')[0]} speaker with very clear audio"
+                    alt_input_ids = self.parler_tokenizer(alt_description, return_tensors="pt").input_ids.to(device)
+                    
+                    generation = self.parler_model.generate(
+                        input_ids=alt_input_ids,
+                        prompt_input_ids=prompt_input_ids,
+                        do_sample=True,  # Use sampling for retry
+                        temperature=0.5  # Moderate temperature
+                    )
+                    audio_array = generation.cpu().numpy().squeeze()
+                except Exception as retry_e:
+                    print(f"Warning: Retry failed: {str(retry_e)}")
                 
                 # If still silent, log warning and return a beep sound to indicate the issue
                 if np.max(np.abs(audio_array)) < 0.01:
@@ -414,8 +486,27 @@ class TTSGenerator:
             return audio_segment
         except Exception as e:
             print(f"Error generating audio with Parler: {str(e)}")
-            # Return a silent segment as fallback
-            return AudioSegment.silent(duration=1000)
+            # Create a beep sound to indicate the error
+            sample_rate = self.sample_rate if hasattr(self, 'sample_rate') else 24000
+            duration_ms = 500
+            t = np.linspace(0, duration_ms/1000, int(sample_rate * duration_ms/1000), False)
+            audio_array = np.sin(2 * np.pi * 440 * t) * 0.3  # 440 Hz sine wave
+            
+            # Save to temporary file and load as AudioSegment
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+                temp_path = temp_file.name
+            
+            # Save as WAV
+            import scipy.io.wavfile as wavfile
+            wavfile.write(temp_path, rate=sample_rate, data=audio_array)
+            
+            # Load as AudioSegment
+            audio_segment = AudioSegment.from_wav(temp_path)
+            
+            # Clean up temporary file
+            os.unlink(temp_path)
+            
+            return audio_segment
     
     def _generate_audio_coqui(self, text: str, speaker: str) -> AudioSegment:
         """Generate audio using Coqui TTS.
