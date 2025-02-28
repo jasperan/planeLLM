@@ -52,7 +52,7 @@ logging.getLogger("transformers.generation_utils").setLevel(logging.ERROR)
 class TTSGenerator:
     """Class for generating podcast audio from transcripts."""
     
-    def __init__(self, model_type: str = "bark", config_file: str = 'config.yaml') -> None:
+    def __init__(self, model_type: str = "parler", config_file: str = 'config.yaml') -> None:
         """Initialize the TTS generator.
         
         Args:
@@ -136,24 +136,63 @@ class TTSGenerator:
         try:
             # Try both import paths for compatibility
             try:
-                from parler_tts import ParlerTTS
+                from parler_tts import ParlerTTSForConditionalGeneration, AutoTokenizer
             except ImportError:
-                from parler.tts import ParlerTTS
+                from parler.tts import ParlerTTSForConditionalGeneration
+                from transformers import AutoTokenizer
             
             # Initialize Parler TTS
-            self.model = ParlerTTS()
+            device = "cuda:0" if torch.cuda.is_available() else "cpu"
+            self.parler_model = ParlerTTSForConditionalGeneration.from_pretrained("parler-tts/parler-tts-mini-v1").to(device)
+            self.parler_tokenizer = AutoTokenizer.from_pretrained("parler-tts/parler-tts-mini-v1")
             
-            # Define speaker presets (speaker IDs for Parler)
-            self.speakers = {
-                "Speaker 1": 0,  # Male expert
-                "Speaker 2": 1,  # Female student
-                "Speaker 3": 2   # Second expert
+            # Define available Parler voices
+            self.available_voices = [
+                "Laura", "Gary", "Jon", "Lea", "Karen", "Rick", "Brenda", "David", 
+                "Eileen", "Jordan", "Mike", "Yann", "Joy", "James", "Eric", "Lauren", 
+                "Rose", "Will", "Jason", "Aaron", "Naomie", "Alisa", "Patrick", "Jerry", 
+                "Tina", "Jenna", "Bill", "Tom", "Carol", "Barbara", "Rebecca", "Anna", 
+                "Bruce", "Emily"
+            ]
+            
+            # Define voice descriptions for different speaker types
+            self.voice_descriptions = {
+                # Male voices with different styles
+                "male_clear": "Jon's voice is clear and professional with a moderate pace, with very clear audio that has no background noise.",
+                "male_expressive": "Gary's voice is expressive and animated with varied intonation, with very clear audio that has no background noise.",
+                "male_deep": "Bruce's voice is deep and authoritative with a measured pace, with very clear audio that has no background noise.",
+                "male_casual": "Rick's voice is casual and conversational with a natural flow, with very clear audio that has no background noise.",
+                
+                # Female voices with different styles
+                "female_clear": "Laura's voice is clear and professional with a moderate pace, with very clear audio that has no background noise.",
+                "female_expressive": "Jenna's voice is expressive and animated with varied intonation, with very clear audio that has no background noise.",
+                "female_warm": "Rose's voice is warm and engaging with a pleasant tone, with very clear audio that has no background noise.",
+                "female_casual": "Lea's voice is casual and conversational with a natural flow, with very clear audio that has no background noise."
             }
+            
+            # Map speakers to voice descriptions
+            self.speaker_voice_map = {
+                "Speaker 1": "male_clear",  # Default for Speaker 1 (expert)
+                "Speaker 2": "female_expressive",  # Default for Speaker 2 (student)
+                "Speaker 3": "male_expressive"   # Default for Speaker 3 (second expert)
+            }
+            
+            # Store the sample rate for later use
+            self.sample_rate = 24000  # Default for Parler TTS
+            
             self.parler_available = True
+            print(f"Parler TTS initialized successfully on {device}")
+            
         except ImportError:
             print("WARNING: Parler TTS module not found. Using fallback TTS instead.")
             print("To install Parler TTS, run: pip install git+https://github.com/huggingface/parler-tts.git")
             # Fall back to Bark if Parler is not available
+            self.model_type = "bark"
+            self._init_bark()
+            self.parler_available = False
+        except Exception as e:
+            print(f"WARNING: Error initializing Parler TTS: {str(e)}. Using fallback TTS instead.")
+            # Fall back to Bark if there's an error with Parler
             self.model_type = "bark"
             self._init_bark()
             self.parler_available = False
@@ -293,12 +332,29 @@ class TTSGenerator:
             AudioSegment containing the generated speech
         """
         try:
-            # Generate audio with low temperature for consistency
-            audio_array = self.model.synthesize(
-                text=text,
-                speaker_id=self.speakers[speaker],
-                temperature=0.1  # Lower temperature for more consistent voices
+            # Get the voice description for this speaker
+            voice_type = self.speaker_voice_map.get(speaker, "male_clear")
+            description = self.voice_descriptions.get(voice_type, self.voice_descriptions["male_clear"])
+            
+            # Prepare inputs for Parler TTS
+            input_ids = self.parler_tokenizer(description, return_tensors="pt").input_ids
+            prompt_input_ids = self.parler_tokenizer(text, return_tensors="pt").input_ids
+            
+            # Move to the same device as the model
+            device = next(self.parler_model.parameters()).device
+            input_ids = input_ids.to(device)
+            prompt_input_ids = prompt_input_ids.to(device)
+            
+            # Generate audio with Parler TTS
+            print(f"Generating audio for '{text[:30]}...' with voice: {voice_type}")
+            generation = self.parler_model.generate(
+                input_ids=input_ids, 
+                prompt_input_ids=prompt_input_ids,
+                do_sample=False  # Deterministic generation for consistency
             )
+            
+            # Convert to numpy array
+            audio_array = generation.cpu().numpy().squeeze()
             
             # Save to temporary file and load as AudioSegment
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
@@ -306,7 +362,7 @@ class TTSGenerator:
             
             # Save as WAV
             import scipy.io.wavfile as wavfile
-            wavfile.write(temp_path, rate=24000, data=audio_array)
+            wavfile.write(temp_path, rate=self.sample_rate, data=audio_array)
             
             # Load as AudioSegment
             audio_segment = AudioSegment.from_wav(temp_path)
@@ -704,5 +760,37 @@ class TTSGenerator:
         summary.append(f"  - Average Time per Segment: {total_segment_time/total_segments:.2f} seconds")
         summary.append(f"Total Execution Time: {self.execution_times['total_time']:.2f} seconds")
         
-        return "\n".join(summary) 
-        return "\n".join(summary) 
+        return "\n".join(summary)
+    
+    def set_voice_description(self, speaker: str, description: str) -> None:
+        """Set a custom voice description for a speaker.
+        
+        Args:
+            speaker: The speaker identifier (e.g., "Speaker 1")
+            description: The voice description to use for Parler TTS
+        """
+        if self.model_type != "parler" or not self.parler_available:
+            print("Warning: Voice descriptions are only supported with Parler TTS")
+            return
+            
+        # Store the custom description directly
+        self.voice_descriptions[f"custom_{speaker}"] = description
+        self.speaker_voice_map[speaker] = f"custom_{speaker}"
+        print(f"Set custom voice description for {speaker}")
+    
+    def set_voice_type(self, speaker: str, voice_type: str) -> None:
+        """Set the voice type for a speaker.
+        
+        Args:
+            speaker: The speaker identifier (e.g., "Speaker 1")
+            voice_type: The voice type to use (e.g., "male_clear", "female_expressive")
+        """
+        if self.model_type != "parler" or not self.parler_available:
+            print("Warning: Voice types are only supported with Parler TTS")
+            return
+            
+        if voice_type in self.voice_descriptions:
+            self.speaker_voice_map[speaker] = voice_type
+            print(f"Set voice type for {speaker} to {voice_type}")
+        else:
+            print(f"Warning: Voice type '{voice_type}' not found. Using default.") 

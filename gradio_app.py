@@ -173,12 +173,19 @@ class PlaneLLMInterface:
         except Exception as e:
             return "", f"Error: {str(e)}"
     
-    def generate_podcast_audio(self, transcript_file: str, model_type: str, progress=gr.Progress()) -> Tuple[str, str]:
+    def generate_podcast_audio(self, transcript_file: str, model_type: str, 
+                              speaker1_voice: str = "male_clear", 
+                              speaker2_voice: str = "female_expressive", 
+                              speaker3_voice: str = "male_expressive", 
+                              progress=gr.Progress()) -> Tuple[str, str]:
         """Generate podcast audio from transcript.
         
         Args:
             transcript_file: Name of transcript file to use
-            model_type: TTS model to use ('bark' or 'parler')
+            model_type: TTS model to use ('parler', 'bark', or 'coqui')
+            speaker1_voice: Voice style for Speaker 1
+            speaker2_voice: Voice style for Speaker 2
+            speaker3_voice: Voice style for Speaker 3
             progress: Gradio progress indicator
             
         Returns:
@@ -187,9 +194,9 @@ class PlaneLLMInterface:
         if not transcript_file:
             return "", "Error: Please select a transcript file"
             
-        # Validate model type - only allow bark for now
-        if model_type != "bark":
-            return "", f"Error: The {model_type} model is temporarily disabled. Please use the Bark model instead."
+        # Validate model type - only allow parler and bark for now
+        if model_type == "coqui":
+            return "", f"Error: The {model_type} model is temporarily disabled. Please use the Parler or Bark model instead."
         
         try:
             progress(0, desc=f"Initializing {model_type} model...")
@@ -202,10 +209,12 @@ class PlaneLLMInterface:
                     # Check if Parler was requested but fell back to Bark
                     if model_type == "parler" and not getattr(self.tts_generator, "parler_available", False):
                         progress(0.05, desc="Parler TTS not available, using Bark as fallback...")
+                        return "", "Error: Parler TTS is not available. Please install it with: pip install git+https://github.com/huggingface/parler-tts.git"
                     
                     # Check if Coqui was requested but fell back to Bark
                     if model_type == "coqui" and not getattr(self.tts_generator, "coqui_available", False):
                         progress(0.05, desc="Coqui TTS not available, using Bark as fallback...")
+                        return "", "Error: Coqui TTS is not available. Please install it with: pip install TTS"
             except ImportError as e:
                 if "parler" in str(e).lower():
                     return "", "Error: Parler TTS module is not installed. Please run: pip install git+https://github.com/huggingface/parler-tts.git"
@@ -217,6 +226,13 @@ class PlaneLLMInterface:
             # Check for FFmpeg
             if not getattr(self.tts_generator, "ffmpeg_available", True):
                 return "", "Error: FFmpeg/ffprobe not found. Please install FFmpeg to generate audio. Ubuntu/Debian: sudo apt-get install ffmpeg"
+            
+            # Set voice types for Parler TTS
+            if model_type == "parler" and hasattr(self.tts_generator, "set_voice_type"):
+                progress(0.05, desc="Setting voice types...")
+                self.tts_generator.set_voice_type("Speaker 1", speaker1_voice)
+                self.tts_generator.set_voice_type("Speaker 2", speaker2_voice)
+                self.tts_generator.set_voice_type("Speaker 3", speaker3_voice)
             
             # Generate timestamp for file naming
             timestamp = time.strftime("%Y%m%d_%H%M%S")
@@ -364,13 +380,50 @@ def create_interface():
                 with gr.Row():
                     model_type = gr.Radio(
                         label="TTS Model",
-                        choices=["bark", "parler", "coqui"],
-                        value="bark",
-                        info="Bark: High quality but slow, Parler: Faster but lower quality (currently disabled), Coqui: High quality with natural intonation (currently disabled)"
+                        choices=["parler", "bark", "coqui"],
+                        value="parler",
+                        info="Parler: Fast with good quality, Bark: High quality but slow, Coqui: High quality with natural intonation (currently disabled)"
                     )
                     
                     # Add a note about disabled models
-                    gr.Markdown("*Note: Currently only Bark is fully supported. Parler and Coqui options will be enabled in a future update.*")
+                    gr.Markdown("*Note: Currently Parler and Bark are fully supported. Coqui option will be enabled in a future update.*")
+                
+                # Add voice selection options for Parler
+                with gr.Row(visible=True) as parler_options:
+                    with gr.Column():
+                        speaker1_voice = gr.Dropdown(
+                            label="Speaker 1 Voice (Expert)",
+                            choices=["male_clear", "male_expressive", "male_deep", "male_casual"],
+                            value="male_clear",
+                            info="Select voice style for Speaker 1 (expert)"
+                        )
+                    
+                    with gr.Column():
+                        speaker2_voice = gr.Dropdown(
+                            label="Speaker 2 Voice (Student)",
+                            choices=["female_expressive", "female_clear", "female_warm", "female_casual"],
+                            value="female_expressive",
+                            info="Select voice style for Speaker 2 (student)"
+                        )
+                    
+                    with gr.Column():
+                        speaker3_voice = gr.Dropdown(
+                            label="Speaker 3 Voice (Second Expert)",
+                            choices=["male_expressive", "male_clear", "male_deep", "male_casual", 
+                                    "female_expressive", "female_clear", "female_warm", "female_casual"],
+                            value="male_expressive",
+                            info="Select voice style for Speaker 3 (second expert)"
+                        )
+                
+                # Show/hide voice options based on model selection
+                def update_voice_options(model):
+                    return gr.update(visible=(model == "parler"))
+                
+                model_type.change(
+                    fn=update_voice_options,
+                    inputs=[model_type],
+                    outputs=[parler_options]
+                )
                 
                 generate_audio_button = gr.Button("Generate Audio")
                 
@@ -388,7 +441,8 @@ def create_interface():
                 
                 generate_audio_button.click(
                     fn=interface.generate_podcast_audio,
-                    inputs=[transcript_file_dropdown, model_type],
+                    inputs=[transcript_file_dropdown, model_type, 
+                           speaker1_voice, speaker2_voice, speaker3_voice],
                     outputs=[audio_output, audio_status]
                 )
         

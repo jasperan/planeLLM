@@ -33,6 +33,14 @@ class TestParlerAudioGeneration(unittest.TestCase):
         self.transcript_path = os.path.join(self.test_dir, "parler_test_transcript.txt")
         with open(self.transcript_path, "w", encoding="utf-8") as f:
             f.write(self.sample_text)
+        
+        # Sample voice descriptions for testing
+        self.voice_descriptions = {
+            "male_clear": "Jon's voice is clear and professional with a moderate pace, with very clear audio that has no background noise.",
+            "female_clear": "Laura's voice is clear and expressive with a moderate pace, with very clear audio that has no background noise.",
+            "male_expressive": "Gary's voice is expressive and animated with varied intonation, with very clear audio that has no background noise.",
+            "female_expressive": "Jenna's voice is expressive and animated with varied intonation, with very clear audio that has no background noise."
+        }
     
     def tearDown(self):
         """Tear down test fixtures."""
@@ -124,6 +132,55 @@ class TestParlerAudioGeneration(unittest.TestCase):
             print(f"Podcast generated with Parler TTS: {output_file}")
         except Exception as e:
             self.fail(f"Podcast generation with Parler failed with error: {str(e)}")
+    
+    def test_parler_voice_selection(self):
+        """Test Parler TTS with different voice descriptions."""
+        try:
+            # Create a TTSGenerator instance with Parler model
+            tts = TTSGenerator(model_type="parler")
+            
+            # Check if Parler is available (if not, it should fall back to Bark)
+            if hasattr(tts, 'parler_available') and not tts.parler_available:
+                self.assertEqual(tts.model_type, "bark")
+                print("Note: Parler TTS not available, test skipped")
+                return
+            
+            # Test if the voice_descriptions attribute exists
+            if not hasattr(tts, 'voice_descriptions'):
+                print("Note: voice_descriptions attribute not available, test skipped")
+                return
+            
+            # Test generating audio with different voice descriptions
+            for voice_name, description in self.voice_descriptions.items():
+                print(f"Testing voice: {voice_name}")
+                
+                # Set the voice description for Speaker 1
+                tts.set_voice_description("Speaker 1", description)
+                
+                # Generate audio
+                audio_segment = tts._generate_audio_parler("This is a test with different voices.", "Speaker 1")
+                
+                # Verify that audio was generated
+                self.assertIsInstance(audio_segment, AudioSegment)
+                self.assertGreater(len(audio_segment), 0)
+                
+                # Export to a voice-specific output file
+                voice_output_path = os.path.join(self.test_dir, f"parler_test_{voice_name}.mp3")
+                audio_segment.export(voice_output_path, format="mp3")
+                
+                # Verify the file exists and has content
+                self.assertTrue(os.path.exists(voice_output_path))
+                self.assertGreater(os.path.getsize(voice_output_path), 0)
+                
+                # Clean up the voice-specific output file
+                if os.path.exists(voice_output_path):
+                    os.remove(voice_output_path)
+                
+                print(f"Voice {voice_name} tested successfully")
+            
+            print("All voice descriptions tested successfully")
+        except Exception as e:
+            self.fail(f"Parler voice selection test failed with error: {str(e)}")
 
 if __name__ == "__main__":
     unittest.main() 
