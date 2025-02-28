@@ -136,10 +136,10 @@ class TTSGenerator:
         try:
             # Try both import paths for compatibility
             try:
-                from parler_tts import ParlerTTSForConditionalGeneration, AutoTokenizer
-            except ImportError:
-                from parler.tts import ParlerTTSForConditionalGeneration
+                from parler_tts import ParlerTTSForConditionalGeneration
                 from transformers import AutoTokenizer
+            except ImportError:
+                from parler.tts import ParlerTTSForConditionalGeneration, AutoTokenizer
             
             # Initialize Parler TTS
             device = "cuda:0" if torch.cuda.is_available() else "cpu"
