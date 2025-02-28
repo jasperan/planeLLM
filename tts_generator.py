@@ -43,6 +43,7 @@ from typing import Dict, List, Optional, Union, Tuple
 from pydub import AudioSegment
 import tempfile
 import tqdm
+import numpy as np
 
 # Disable logging from transformers
 import logging
@@ -336,6 +337,20 @@ class TTSGenerator:
             voice_type = self.speaker_voice_map.get(speaker, "male_clear")
             description = self.voice_descriptions.get(voice_type, self.voice_descriptions["male_clear"])
             
+            # Process text to remove any problematic characters or patterns that might cause silent audio
+            # Remove any excessive whitespace
+            text = re.sub(r'\s+', ' ', text).strip()
+            
+            # Remove any control characters
+            text = re.sub(r'[\x00-\x1F\x7F]', '', text)
+            
+            # Check if text is empty after processing
+            if not text:
+                print(f"Warning: Empty text after processing for {speaker}")
+                return AudioSegment.silent(duration=500)  # Return a short silence
+                
+            print(f"Generating audio with Parler for '{text[:50]}...' with voice: {voice_type}")
+            
             # Prepare inputs for Parler TTS
             input_ids = self.parler_tokenizer(description, return_tensors="pt").input_ids
             prompt_input_ids = self.parler_tokenizer(text, return_tensors="pt").input_ids
@@ -346,15 +361,38 @@ class TTSGenerator:
             prompt_input_ids = prompt_input_ids.to(device)
             
             # Generate audio with Parler TTS
-            print(f"Generating audio for '{text[:30]}...' with voice: {voice_type}")
             generation = self.parler_model.generate(
                 input_ids=input_ids, 
                 prompt_input_ids=prompt_input_ids,
-                do_sample=False  # Deterministic generation for consistency
+                do_sample=False,  # Deterministic generation for consistency
+                max_length=None   # Allow the model to determine the appropriate length
             )
             
             # Convert to numpy array
             audio_array = generation.cpu().numpy().squeeze()
+            
+            # Check if audio array contains only zeros or very low values (silent audio)
+            if np.max(np.abs(audio_array)) < 0.01:
+                print(f"Warning: Generated audio for '{text[:30]}...' appears to be silent. Retrying...")
+                
+                # Retry with slightly different parameters
+                generation = self.parler_model.generate(
+                    input_ids=input_ids, 
+                    prompt_input_ids=prompt_input_ids,
+                    do_sample=True,  # Use sampling for retry
+                    temperature=0.5  # Moderate temperature
+                )
+                audio_array = generation.cpu().numpy().squeeze()
+                
+                # If still silent, log warning and return a beep sound to indicate the issue
+                if np.max(np.abs(audio_array)) < 0.01:
+                    print(f"Warning: Still generated silent audio for '{text[:30]}...'")
+                    # Create a beep sound to indicate silent audio
+                    sample_rate = self.sample_rate
+                    duration_ms = 500
+                    t = np.linspace(0, duration_ms/1000, int(sample_rate * duration_ms/1000), False)
+                    beep = np.sin(2 * np.pi * 440 * t) * 0.3  # 440 Hz sine wave
+                    audio_array = beep
             
             # Save to temporary file and load as AudioSegment
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
@@ -369,6 +407,9 @@ class TTSGenerator:
             
             # Clean up temporary file
             os.unlink(temp_path)
+            
+            # Trim silence at the beginning and end
+            audio_segment = audio_segment.strip_silence(silence_thresh=-50, padding=100)
             
             return audio_segment
         except Exception as e:
@@ -565,77 +606,80 @@ class TTSGenerator:
                     voice = speaker_voices[speaker]
                     print(f"  Using consistent voice for {speaker}: {voice}")
                 
-                # Split long text into smaller chunks (max 150 chars)
-                chunks = []
-                max_chunk_size = 150  # Reduced from 200 to ensure better handling
-                
-                # Improved chunking by sentences
-                sentences = re.split(r'(?<=[.!?])\s+', text)
-                current_chunk = []
-                current_length = 0
-                
-                for sentence in sentences:
-                    # Skip empty sentences
-                    if not sentence.strip():
-                        continue
-                        
-                    # If this sentence alone is longer than max_chunk_size, split it further
-                    if len(sentence) > max_chunk_size:
-                        # Split by commas or other natural pauses
-                        sub_parts = re.split(r'(?<=[,;:])\s+', sentence)
-                        for part in sub_parts:
-                            if len(part) > max_chunk_size:
-                                # If still too long, just add it as is - TTS will have to handle it
-                                chunks.append(part)
-                            elif current_length + len(part) > max_chunk_size and current_chunk:
-                                chunks.append(' '.join(current_chunk))
-                                current_chunk = [part]
-                                current_length = len(part)
-                            else:
-                                current_chunk.append(part)
-                                current_length += len(part)
-                    elif current_length + len(sentence) > max_chunk_size and current_chunk:
+                # For Parler, we don't need to chunk the text as it can handle longer inputs
+                if self.model_type == "parler":
+                    print(f"  Generating audio for entire segment ({len(text)} chars)")
+                    segment_audio = self._generate_audio_parler(text, speaker)
+                else:
+                    # Split long text into smaller chunks (max 150 chars) for other models
+                    chunks = []
+                    max_chunk_size = 150  # Reduced from 200 to ensure better handling
+                    
+                    # Improved chunking by sentences
+                    sentences = re.split(r'(?<=[.!?])\s+', text)
+                    current_chunk = []
+                    current_length = 0
+                    
+                    for sentence in sentences:
+                        # Skip empty sentences
+                        if not sentence.strip():
+                            continue
+                            
+                        # If this sentence alone is longer than max_chunk_size, split it further
+                        if len(sentence) > max_chunk_size:
+                            # Split by commas or other natural pauses
+                            sub_parts = re.split(r'(?<=[,;:])\s+', sentence)
+                            for part in sub_parts:
+                                if len(part) > max_chunk_size:
+                                    # If still too long, just add it as is - TTS will have to handle it
+                                    chunks.append(part)
+                                elif current_length + len(part) > max_chunk_size and current_chunk:
+                                    chunks.append(' '.join(current_chunk))
+                                    current_chunk = [part]
+                                    current_length = len(part)
+                                else:
+                                    current_chunk.append(part)
+                                    current_length += len(part)
+                        elif current_length + len(sentence) > max_chunk_size and current_chunk:
+                            chunks.append(' '.join(current_chunk))
+                            current_chunk = [sentence]
+                            current_length = len(sentence)
+                        else:
+                            current_chunk.append(sentence)
+                            current_length += len(sentence)
+                    
+                    if current_chunk:
                         chunks.append(' '.join(current_chunk))
-                        current_chunk = [sentence]
-                        current_length = len(sentence)
-                    else:
-                        current_chunk.append(sentence)
-                        current_length += len(sentence)
-                
-                if current_chunk:
-                    chunks.append(' '.join(current_chunk))
-                
-                # Generate audio for each chunk - all chunks use the same speaker voice
-                segment_audio = AudioSegment.empty()
-                
-                # Process natural conversation elements like [laughs] with appropriate pauses
-                for j, chunk in enumerate(chunks):
-                    print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
                     
-                    # Check for natural conversation elements and add appropriate pauses
-                    has_laugh = '[laughs]' in chunk or '[chuckles]' in chunk
-                    has_pause = '[pauses]' in chunk or '[sighs]' in chunk
+                    # Generate audio for each chunk - all chunks use the same speaker voice
+                    segment_audio = AudioSegment.empty()
                     
-                    # Generate audio based on model type
-                    if self.model_type == "bark":
-                        chunk_audio = self._generate_audio_bark(chunk, speaker)
-                    elif self.model_type == "parler":
-                        chunk_audio = self._generate_audio_parler(chunk, speaker)
-                    else:  # coqui
-                        chunk_audio = self._generate_audio_coqui(chunk, speaker)
-                    
-                    # Add appropriate pauses for natural elements
-                    if has_laugh:
-                        # Add a short laugh pause (300ms)
-                        laugh_pause = AudioSegment.silent(duration=300)
-                        chunk_audio = chunk_audio + laugh_pause
-                    
-                    if has_pause:
-                        # Add a thoughtful pause (500ms)
-                        thoughtful_pause = AudioSegment.silent(duration=500)
-                        chunk_audio = chunk_audio + thoughtful_pause
-                    
-                    segment_audio += chunk_audio
+                    # Process natural conversation elements like [laughs] with appropriate pauses
+                    for j, chunk in enumerate(chunks):
+                        print(f"  Chunk {j+1}/{len(chunks)}: {len(chunk)} chars")
+                        
+                        # Check for natural conversation elements and add appropriate pauses
+                        has_laugh = '[laughs]' in chunk or '[chuckles]' in chunk
+                        has_pause = '[pauses]' in chunk or '[sighs]' in chunk
+                        
+                        # Generate audio based on model type
+                        if self.model_type == "bark":
+                            chunk_audio = self._generate_audio_bark(chunk, speaker)
+                        else:  # coqui
+                            chunk_audio = self._generate_audio_coqui(chunk, speaker)
+                        
+                        # Add appropriate pauses for natural elements
+                        if has_laugh:
+                            # Add a short laugh pause (300ms)
+                            laugh_pause = AudioSegment.silent(duration=300)
+                            chunk_audio = chunk_audio + laugh_pause
+                        
+                        if has_pause:
+                            # Add a thoughtful pause (500ms)
+                            thoughtful_pause = AudioSegment.silent(duration=500)
+                            chunk_audio = chunk_audio + thoughtful_pause
+                        
+                        segment_audio += chunk_audio
                 
                 # Add a short pause between speakers (500ms)
                 pause = AudioSegment.silent(duration=500)
