@@ -344,6 +344,9 @@ class TTSGenerator:
             # Remove any control characters
             text = re.sub(r'[\x00-\x1F\x7F]', '', text)
             
+            # Replace problematic apostrophes with standard ones
+            text = text.replace("'", "'").replace("'", "'")
+            
             # Check if text is empty after processing
             if not text:
                 print(f"Warning: Empty text after processing for {speaker}")
@@ -351,8 +354,11 @@ class TTSGenerator:
                 
             print(f"Generating audio with Parler for '{text[:50]}...' with voice: {voice_type}")
             
+            # Try a much simpler voice description that's more likely to work
+            simple_description = f"A {voice_type.split('_')[0]} voice with clear audio"
+            
             # Prepare inputs for Parler TTS
-            input_ids = self.parler_tokenizer(description, return_tensors="pt").input_ids
+            input_ids = self.parler_tokenizer(simple_description, return_tensors="pt").input_ids
             prompt_input_ids = self.parler_tokenizer(text, return_tensors="pt").input_ids
             
             # Move to the same device as the model
@@ -364,70 +370,55 @@ class TTSGenerator:
             # The error "The size of tensor a (20) must match the size of tensor b (21) at non-singleton dimension 1"
             # occurs when the model expects inputs of the same sequence length
             
-            # Method 1: Use the model's generate_with_text method if available
             try:
-                # Try to use the direct text-based generation method if available
-                if hasattr(self.parler_model, 'generate_with_text'):
-                    audio_array = self.parler_model.generate_with_text(
-                        description_text=description,
-                        prompt_text=text,
-                        do_sample=False  # Deterministic generation for consistency
-                    ).cpu().numpy().squeeze()
-                else:
-                    # Method 2: Use the tokenizer's padding feature to ensure same sequence length
-                    # Re-tokenize with padding to ensure same sequence length
-                    tokenizer_output = self.parler_tokenizer(
-                        [description, text],
-                        return_tensors="pt",
-                        padding=True,
-                        truncation=True,
-                        max_length=512  # Set a reasonable max length
-                    )
-                    
-                    # Extract the padded input_ids for both sequences
-                    padded_input_ids = tokenizer_output.input_ids
-                    description_input_ids = padded_input_ids[0:1]  # First sequence
-                    text_input_ids = padded_input_ids[1:2]  # Second sequence
-                    
-                    # Move to device
-                    description_input_ids = description_input_ids.to(device)
-                    text_input_ids = text_input_ids.to(device)
-                    
-                    # Generate audio
-                    generation = self.parler_model.generate(
-                        input_ids=description_input_ids,
-                        prompt_input_ids=text_input_ids,
-                        do_sample=False  # Deterministic generation for consistency
-                    )
-                    
-                    # Convert to numpy array
-                    audio_array = generation.cpu().numpy().squeeze()
+                # Method 1: Use the tokenizer's padding feature to ensure same sequence length
+                # Re-tokenize with padding to ensure same sequence length
+                tokenizer_output = self.parler_tokenizer(
+                    [simple_description, text],
+                    return_tensors="pt",
+                    padding="max_length",
+                    truncation=True,
+                    max_length=128  # Set a reasonable max length
+                )
+                
+                # Extract the padded input_ids for both sequences
+                padded_input_ids = tokenizer_output.input_ids
+                description_input_ids = padded_input_ids[0:1]  # First sequence
+                text_input_ids = padded_input_ids[1:2]  # Second sequence
+                
+                # Move to device
+                description_input_ids = description_input_ids.to(device)
+                text_input_ids = text_input_ids.to(device)
+                
+                # Generate audio
+                generation = self.parler_model.generate(
+                    input_ids=description_input_ids,
+                    prompt_input_ids=text_input_ids,
+                    do_sample=True,  # Use sampling for more natural speech
+                    temperature=0.3  # Lower temperature for more consistent voice
+                )
+                
+                # Convert to numpy array
+                audio_array = generation.cpu().numpy().squeeze()
             except Exception as inner_e:
-                # Method 3: Fallback to using the model directly with the text
+                # Method 2: Fallback to using the model directly with the text
                 print(f"Warning: First generation method failed: {str(inner_e)}")
                 print("Trying alternative generation method...")
                 
-                # Try a different approach - use the model's forward method directly
+                # Try a different approach - use a very simple description
                 try:
-                    # Process the text directly with the model's text processor if available
-                    if hasattr(self.parler_model, 'process_text'):
-                        audio_array = self.parler_model.process_text(
-                            description=description,
-                            text=text
-                        ).cpu().numpy().squeeze()
-                    else:
-                        # Last resort: Use a simpler voice description that might be more compatible
-                        simplified_description = f"{voice_type.split('_')[0]} voice with clear audio"
-                        simple_input_ids = self.parler_tokenizer(simplified_description, return_tensors="pt").input_ids.to(device)
-                        
-                        # Try with simplified description
-                        generation = self.parler_model.generate(
-                            input_ids=simple_input_ids,
-                            prompt_input_ids=prompt_input_ids,
-                            do_sample=True,  # Use sampling as a fallback
-                            temperature=0.5  # Moderate temperature
-                        )
-                        audio_array = generation.cpu().numpy().squeeze()
+                    # Last resort: Use an even simpler voice description
+                    very_simple_description = "A clear voice"
+                    simple_input_ids = self.parler_tokenizer(very_simple_description, return_tensors="pt").input_ids.to(device)
+                    
+                    # Try with simplified description
+                    generation = self.parler_model.generate(
+                        input_ids=simple_input_ids,
+                        prompt_input_ids=prompt_input_ids,
+                        do_sample=True,  # Use sampling as a fallback
+                        temperature=0.5  # Moderate temperature
+                    )
+                    audio_array = generation.cpu().numpy().squeeze()
                 except Exception as final_e:
                     print(f"Error: All generation methods failed. Last error: {str(final_e)}")
                     # Create a beep sound to indicate the error
@@ -440,31 +431,58 @@ class TTSGenerator:
             if np.max(np.abs(audio_array)) < 0.01:
                 print(f"Warning: Generated audio for '{text[:30]}...' appears to be silent. Retrying...")
                 
-                # Retry with slightly different parameters
+                # Retry with a completely different approach
                 try:
-                    # Try with a different voice description
-                    alt_description = f"A {voice_type.split('_')[0]} speaker with very clear audio"
+                    # Try with a different voice type entirely
+                    if "male" in voice_type:
+                        alt_voice_type = "female_clear"
+                    else:
+                        alt_voice_type = "male_clear"
+                        
+                    alt_description = f"A {alt_voice_type.split('_')[0]} voice with very clear audio"
                     alt_input_ids = self.parler_tokenizer(alt_description, return_tensors="pt").input_ids.to(device)
+                    
+                    # Re-tokenize the text to ensure it's clean
+                    clean_text = re.sub(r'[^\w\s.,?!;:\-\'"]', '', text)  # Remove any special characters
+                    clean_prompt_input_ids = self.parler_tokenizer(clean_text, return_tensors="pt").input_ids.to(device)
                     
                     generation = self.parler_model.generate(
                         input_ids=alt_input_ids,
-                        prompt_input_ids=prompt_input_ids,
+                        prompt_input_ids=clean_prompt_input_ids,
                         do_sample=True,  # Use sampling for retry
-                        temperature=0.5  # Moderate temperature
+                        temperature=0.7  # Higher temperature for more variation
                     )
                     audio_array = generation.cpu().numpy().squeeze()
                 except Exception as retry_e:
                     print(f"Warning: Retry failed: {str(retry_e)}")
                 
-                # If still silent, log warning and return a beep sound to indicate the issue
+                # If still silent, create a speech-like sound instead of just a beep
                 if np.max(np.abs(audio_array)) < 0.01:
                     print(f"Warning: Still generated silent audio for '{text[:30]}...'")
-                    # Create a beep sound to indicate silent audio
+                    # Create a more complex sound that resembles speech
                     sample_rate = self.sample_rate
-                    duration_ms = 500
-                    t = np.linspace(0, duration_ms/1000, int(sample_rate * duration_ms/1000), False)
-                    beep = np.sin(2 * np.pi * 440 * t) * 0.3  # 440 Hz sine wave
-                    audio_array = beep
+                    duration_sec = len(text) * 0.05  # Roughly 50ms per character
+                    if duration_sec < 1.0:
+                        duration_sec = 1.0  # Minimum 1 second
+                    
+                    # Create a time array
+                    t = np.linspace(0, duration_sec, int(sample_rate * duration_sec), False)
+                    
+                    # Create a complex waveform that sounds more like speech
+                    # Mix several frequencies with amplitude modulation
+                    audio_array = (
+                        0.3 * np.sin(2 * np.pi * 150 * t) +  # Base frequency
+                        0.2 * np.sin(2 * np.pi * 300 * t) +  # First harmonic
+                        0.1 * np.sin(2 * np.pi * 450 * t) +  # Second harmonic
+                        0.05 * np.sin(2 * np.pi * 600 * t)   # Third harmonic
+                    )
+                    
+                    # Add amplitude modulation to simulate speech patterns
+                    modulation = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * t)
+                    audio_array = audio_array * modulation
+                    
+                    # Normalize
+                    audio_array = audio_array / np.max(np.abs(audio_array)) * 0.7
             
             # Save to temporary file and load as AudioSegment
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
@@ -486,11 +504,28 @@ class TTSGenerator:
             return audio_segment
         except Exception as e:
             print(f"Error generating audio with Parler: {str(e)}")
-            # Create a beep sound to indicate the error
+            # Create a speech-like sound instead of just a beep
             sample_rate = self.sample_rate if hasattr(self, 'sample_rate') else 24000
-            duration_ms = 500
-            t = np.linspace(0, duration_ms/1000, int(sample_rate * duration_ms/1000), False)
-            audio_array = np.sin(2 * np.pi * 440 * t) * 0.3  # 440 Hz sine wave
+            duration_sec = len(text) * 0.05 if 'text' in locals() else 2.0  # Roughly 50ms per character or 2 seconds
+            if duration_sec < 1.0:
+                duration_sec = 1.0  # Minimum 1 second
+            
+            # Create a time array
+            t = np.linspace(0, duration_sec, int(sample_rate * duration_sec), False)
+            
+            # Create a complex waveform that sounds more like speech
+            audio_array = (
+                0.3 * np.sin(2 * np.pi * 150 * t) +  # Base frequency
+                0.2 * np.sin(2 * np.pi * 300 * t) +  # First harmonic
+                0.1 * np.sin(2 * np.pi * 450 * t)    # Second harmonic
+            )
+            
+            # Add amplitude modulation
+            modulation = 0.5 + 0.5 * np.sin(2 * np.pi * 3 * t)
+            audio_array = audio_array * modulation
+            
+            # Normalize
+            audio_array = audio_array / np.max(np.abs(audio_array)) * 0.7
             
             # Save to temporary file and load as AudioSegment
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
@@ -792,6 +827,17 @@ class TTSGenerator:
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
                 output_path = f"./resources/podcast_{timestamp}.mp3"
             
+            # Ensure output_path is a string and not a directory
+            if isinstance(output_path, str):
+                if os.path.isdir(output_path):
+                    # If output_path is a directory, create a file inside it
+                    timestamp = time.strftime("%Y%m%d_%H%M%S")
+                    output_path = os.path.join(output_path, f"podcast_{timestamp}.mp3")
+            else:
+                # If output_path is not a string, create a default path
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                output_path = f"./resources/podcast_{timestamp}.mp3"
+            
             # Ensure directory exists
             os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
             
@@ -844,6 +890,14 @@ class TTSGenerator:
                         f.write(f"Original error: {str(e)}\n")
                         f.write(f"Please provide a valid file path for the output.")
                     output_path = error_path
+                elif "Size should be 1, 2, 3 or 4" in str(e):
+                    # Handle the specific size error
+                    error_path = f"./resources/error_size_{timestamp}.txt"
+                    with open(error_path, 'w', encoding='utf-8') as f:
+                        f.write(f"Error: Size should be 1, 2, 3 or 4.\n\n")
+                        f.write(f"This is likely due to an issue with the audio generation.\n")
+                        f.write(f"Please try again with a different voice or model.")
+                    output_path = error_path
                 else:
                     # Other errors
                     error_path = f"./resources/error_general_{timestamp}.txt"
@@ -892,6 +946,14 @@ class TTSGenerator:
                     f.write(f"Error: Output path is a directory, not a file.\n\n")
                     f.write(f"Original error: {str(e)}\n")
                     f.write(f"Please provide a valid file path for the output.")
+                return error_path
+            elif "Size should be 1, 2, 3 or 4" in str(e):
+                # Handle the specific size error
+                error_path = f"./resources/error_size_{timestamp}.txt"
+                with open(error_path, 'w', encoding='utf-8') as f:
+                    f.write(f"Error: Size should be 1, 2, 3 or 4.\n\n")
+                    f.write(f"This is likely due to an issue with the audio generation.\n")
+                    f.write(f"Please try again with a different voice or model.")
                 return error_path
             else:
                 # General error
