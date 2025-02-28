@@ -5,6 +5,8 @@ Test for Parler TTS audio generation with a sample sentence.
 This test file specifically tests the Parler TTS model's ability to generate
 audio from a simple sample sentence. It can be used to verify that the Parler
 TTS integration is working correctly.
+
+These tests are ONLY for Parler TTS and will fail if Parler TTS is not available.
 """
 
 import os
@@ -13,12 +15,30 @@ from unittest.mock import patch, MagicMock
 import tempfile
 import shutil
 from pydub import AudioSegment
+import sys
 
 # Import the TTSGenerator class
 from tts_generator import TTSGenerator
 
 class TestParlerAudioGeneration(unittest.TestCase):
     """Test cases for Parler audio generation."""
+    
+    @classmethod
+    def setUpClass(cls):
+        """Check if Parler TTS is available before running any tests."""
+        try:
+            # Try to import Parler TTS
+            try:
+                from parler_tts import ParlerTTSForConditionalGeneration
+            except ImportError:
+                from parler.tts import ParlerTTSForConditionalGeneration
+                
+            print("Parler TTS is available. Tests will proceed.")
+        except ImportError:
+            print("ERROR: Parler TTS is not available. Tests cannot proceed.")
+            print("Please install Parler TTS with: pip install git+https://github.com/huggingface/parler-tts.git")
+            # Skip all tests if Parler is not available
+            raise unittest.SkipTest("Parler TTS is not available")
     
     def setUp(self):
         """Set up test fixtures."""
@@ -64,15 +84,13 @@ class TestParlerAudioGeneration(unittest.TestCase):
             # Check that the model_type is set correctly
             self.assertEqual(tts.model_type, "parler")
             
-            # Check if Parler is available (if not, it should fall back to Bark)
-            if hasattr(tts, 'parler_available') and not tts.parler_available:
-                self.assertEqual(tts.model_type, "bark")
-                print("Note: Parler TTS not available, test skipped")
-                return
-                
+            # Verify that Parler is available and not falling back to Bark
+            self.assertTrue(hasattr(tts, 'parler_available'), "parler_available attribute not found")
+            self.assertTrue(tts.parler_available, "Parler TTS is not available")
+            
             # Verify speaker presets are defined
-            self.assertIn("Speaker 1", tts.speakers)
-            self.assertIn("Speaker 2", tts.speakers)
+            self.assertIn("Speaker 1", tts.speaker_voice_map)
+            self.assertIn("Speaker 2", tts.speaker_voice_map)
             
             print("Parler TTS initialized successfully")
         except Exception as e:
@@ -84,29 +102,26 @@ class TestParlerAudioGeneration(unittest.TestCase):
             # Create a TTSGenerator instance with Parler model
             tts = TTSGenerator(model_type="parler")
             
-            # Check if Parler is available (if not, it should fall back to Bark)
-            if hasattr(tts, 'parler_available') and not tts.parler_available:
-                self.assertEqual(tts.model_type, "bark")
-                print("Note: Parler TTS not available, test skipped")
-                return
+            # Verify that Parler is available and not falling back to Bark
+            self.assertTrue(hasattr(tts, 'parler_available'), "parler_available attribute not found")
+            self.assertTrue(tts.parler_available, "Parler TTS is not available")
             
             # Generate audio from the sample text
-            if hasattr(tts, '_generate_audio_parler'):
-                # Direct test of the Parler generation method
-                audio_segment = tts._generate_audio_parler("This is a test sentence.", "Speaker 1")
-                
-                # Verify that audio was generated
-                self.assertIsInstance(audio_segment, AudioSegment)
-                self.assertGreater(len(audio_segment), 0)
-                
-                # Export the audio segment to verify it works
-                audio_segment.export(self.output_path, format="mp3")
-                self.assertTrue(os.path.exists(self.output_path))
-                self.assertGreater(os.path.getsize(self.output_path), 0)
-                
-                print(f"Parler audio generated successfully: {self.output_path}")
-            else:
-                print("Note: _generate_audio_parler method not available, test skipped")
+            self.assertTrue(hasattr(tts, '_generate_audio_parler'), "_generate_audio_parler method not found")
+            
+            # Direct test of the Parler generation method
+            audio_segment = tts._generate_audio_parler("This is a test sentence.", "Speaker 1")
+            
+            # Verify that audio was generated
+            self.assertIsInstance(audio_segment, AudioSegment)
+            self.assertGreater(len(audio_segment), 0)
+            
+            # Export the audio segment to verify it works
+            audio_segment.export(self.output_path, format="mp3")
+            self.assertTrue(os.path.exists(self.output_path))
+            self.assertGreater(os.path.getsize(self.output_path), 0)
+            
+            print(f"Parler audio generated successfully: {self.output_path}")
         except Exception as e:
             self.fail(f"Parler audio generation failed with error: {str(e)}")
     
@@ -116,11 +131,9 @@ class TestParlerAudioGeneration(unittest.TestCase):
             # Create a TTSGenerator instance with Parler model
             tts = TTSGenerator(model_type="parler")
             
-            # Check if Parler is available (if not, it should fall back to Bark)
-            if hasattr(tts, 'parler_available') and not tts.parler_available:
-                self.assertEqual(tts.model_type, "bark")
-                print("Note: Parler TTS not available, test skipped")
-                return
+            # Verify that Parler is available and not falling back to Bark
+            self.assertTrue(hasattr(tts, 'parler_available'), "parler_available attribute not found")
+            self.assertTrue(tts.parler_available, "Parler TTS is not available")
             
             # Generate podcast from the transcript file
             output_file = tts.generate_podcast(self.transcript_path, output_path=self.output_path)
@@ -139,16 +152,12 @@ class TestParlerAudioGeneration(unittest.TestCase):
             # Create a TTSGenerator instance with Parler model
             tts = TTSGenerator(model_type="parler")
             
-            # Check if Parler is available (if not, it should fall back to Bark)
-            if hasattr(tts, 'parler_available') and not tts.parler_available:
-                self.assertEqual(tts.model_type, "bark")
-                print("Note: Parler TTS not available, test skipped")
-                return
+            # Verify that Parler is available and not falling back to Bark
+            self.assertTrue(hasattr(tts, 'parler_available'), "parler_available attribute not found")
+            self.assertTrue(tts.parler_available, "Parler TTS is not available")
             
             # Test if the voice_descriptions attribute exists
-            if not hasattr(tts, 'voice_descriptions'):
-                print("Note: voice_descriptions attribute not available, test skipped")
-                return
+            self.assertTrue(hasattr(tts, 'voice_descriptions'), "voice_descriptions attribute not found")
             
             # Test generating audio with different voice descriptions
             for voice_name, description in self.voice_descriptions.items():

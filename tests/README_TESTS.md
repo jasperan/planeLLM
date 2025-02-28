@@ -38,9 +38,11 @@ pytest test_podcast_controller.py
 
 A specific test for Parler TTS audio generation is available. This test verifies that the Parler TTS model can generate audio from a sample sentence.
 
+> **Important**: These tests are ONLY for Parler TTS and will fail if Parler TTS is not available. There is no fallback to other TTS models.
+
 ### Prerequisites
 
-Make sure you have the Parler TTS package installed:
+Parler TTS package is **required** to run these tests:
 
 ```bash
 pip install git+https://github.com/huggingface/parler-tts.git
@@ -77,6 +79,13 @@ The Parler test performs the following checks:
 2. **Audio Generation Test**: Tests the `_generate_audio_parler` method with a sample sentence
 3. **Podcast Generation Test**: Tests the full podcast generation pipeline with Parler TTS
 4. **Voice Selection Test**: Tests the ability to select different voice styles for each speaker
+
+### Error Handling
+
+If Parler TTS is not available:
+- The tests will be skipped with a clear error message
+- The script will exit with a non-zero status code
+- You will be prompted to install Parler TTS
 
 ### Voice Selection Feature
 
