@@ -75,9 +75,7 @@ Here's a list of features for the Gradio interface:
 - **TTS model selection** between Bark (higher quality), Parler (faster), and Coqui (high quality with natural intonation)
 - **Real-time feedback** on generation progress
 
-You can check out the result of using the Gradio interface in this audio file:
-
-[Sample audio output](./outputs/podcast_example_output.mp3)
+You can check out the result of using the Gradio interface in [this audio file](./outputs/podcast_output.mp3).
 
 #### Topic Explorer
 
