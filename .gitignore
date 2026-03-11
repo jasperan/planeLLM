@@ -174,3 +174,14 @@ resources/
 .DS_Store
 
 .gradio
+
+# planeLLM TUI
+planellm-tui/bin/
+
+# Plans and generated output
+docs/plans/
+task_plan.md
+findings.md
+progress.md
+dogfood-output/
+.playwright-mcp/
