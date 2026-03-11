@@ -1,5 +1,30 @@
 # planeLLM: Bite-sized podcasts to learn about anything powered by the OCI GenAI Service
 
+## Installation
+
+<!-- one-command-install -->
+> **One-command install** — clone, configure, and run in a single step:
+>
+> ```bash
+> curl -fsSL https://raw.githubusercontent.com/jasperan/planeLLM/main/install.sh | bash
+> ```
+>
+> <details><summary>Advanced options</summary>
+>
+> Override install location:
+> ```bash
+> PROJECT_DIR=/opt/myapp curl -fsSL https://raw.githubusercontent.com/jasperan/planeLLM/main/install.sh | bash
+> ```
+>
+> Or install manually:
+> ```bash
+> git clone https://github.com/jasperan/planeLLM.git
+> cd planeLLM
+> # See below for setup instructions
+> ```
+> </details>
+
+
 ## Introduction
 
 planeLLM is a Python application that uses the OCI GenAI service to generate bite-sized podcasts to learn about anything. It's a simple and easy-to-use tool that allows you to generate podcasts on any topic you want!
