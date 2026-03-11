@@ -11,3 +11,6 @@ git+https://github.com/huggingface/parler-tts.git
 gradio>=4.0.0
 TTS
 flash_attn
+fish-audio-sdk>=0.1.0
+fastapi
+uvicorn[standard]
