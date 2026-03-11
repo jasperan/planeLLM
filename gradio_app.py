@@ -173,16 +173,18 @@ class PlaneLLMInterface:
         except Exception as e:
             return "", f"Error: {str(e)}"
     
-    def generate_podcast_audio(self, transcript_file: str, model_type: str, 
-                              speaker1_voice: str = "male_clear", 
-                              speaker2_voice: str = "female_expressive", 
-                              speaker3_voice: str = "male_expressive", 
+    def generate_podcast_audio(self, transcript_file: str, model_type: str,
+                              speaker1_voice: str = "male_clear",
+                              speaker2_voice: str = "female_expressive",
+                              speaker3_voice: str = "male_expressive",
+                              fish_reference: str = "",
+                              fish_emotion: str = "(neutral)",
                               progress=gr.Progress()) -> Tuple[str, str]:
         """Generate podcast audio from transcript.
         
         Args:
             transcript_file: Name of transcript file to use
-            model_type: TTS model to use ('parler', 'bark', or 'coqui')
+            model_type: TTS model to use ('fish', 'parler', or 'bark')
             speaker1_voice: Voice style for Speaker 1
             speaker2_voice: Voice style for Speaker 2
             speaker3_voice: Voice style for Speaker 3
@@ -193,11 +195,7 @@ class PlaneLLMInterface:
         """
         if not transcript_file:
             return "", "Error: Please select a transcript file"
-            
-        # Validate model type - only allow parler and bark for now
-        if model_type == "coqui":
-            return "", f"Error: The {model_type} model is temporarily disabled. Please use the Parler or Bark model instead."
-        
+
         try:
             progress(0, desc=f"Initializing {model_type} model...")
             
@@ -233,7 +231,14 @@ class PlaneLLMInterface:
                 self.tts_generator.set_voice_type("Speaker 1", speaker1_voice)
                 self.tts_generator.set_voice_type("Speaker 2", speaker2_voice)
                 self.tts_generator.set_voice_type("Speaker 3", speaker3_voice)
-            
+
+            # Set Fish Speech options
+            if model_type == "fish" and hasattr(self.tts_generator, "fish_available") and self.tts_generator.fish_available:
+                if fish_reference:
+                    self.tts_generator.fish_reference_id = fish_reference
+                    for spk in self.tts_generator.fish_speaker_map:
+                        self.tts_generator.fish_speaker_map[spk] = fish_reference
+
             # Generate timestamp for file naming
             timestamp = time.strftime("%Y%m%d_%H%M%S")
             audio_file = f"podcast_{timestamp}.mp3"
@@ -380,13 +385,12 @@ def create_interface():
                 with gr.Row():
                     model_type = gr.Radio(
                         label="TTS Model",
-                        choices=["parler", "bark", "coqui"],
-                        value="parler",
-                        info="Parler: Fast with good quality, Bark: High quality but slow, Coqui: High quality with natural intonation (currently disabled)"
+                        choices=["fish", "parler", "bark"],
+                        value="fish",
+                        info="Fish Speech S2: Cloud API with emotion tags & voice cloning, Parler: Fast local, Bark: High quality but slow"
                     )
-                    
-                    # Add a note about disabled models
-                    gr.Markdown("*Note: Currently Parler and Bark are fully supported. Coqui option will be enabled in a future update.*")
+
+                    gr.Markdown("*Fish Speech S2 is the recommended model. Parler and Bark run locally.*")
                 
                 # Add voice selection options for Parler
                 with gr.Row(visible=True) as parler_options:
@@ -415,14 +419,29 @@ def create_interface():
                             info="Select voice style for Speaker 3 (second expert)"
                         )
                 
+                with gr.Row(visible=True) as fish_options:
+                    fish_reference = gr.Textbox(
+                        label="Fish Voice Reference ID",
+                        placeholder="Cloud voice ID (leave empty to use local voices)",
+                        value=os.environ.get("FISH_REFERENCE_ID", ""),
+                        info="Optional: Fish Audio cloud voice reference ID"
+                    )
+                    fish_emotion = gr.Dropdown(
+                        label="Emotion Style",
+                        choices=["(neutral)", "[excited]", "[whisper]", "[professional broadcast tone]",
+                                 "[calm]", "[cheerful]", "[serious]"],
+                        value="(neutral)",
+                        info="Emotion tag to apply to all speech"
+                    )
+
                 # Show/hide voice options based on model selection
                 def update_voice_options(model):
-                    return gr.update(visible=(model == "parler"))
-                
+                    return gr.update(visible=(model == "parler")), gr.update(visible=(model == "fish"))
+
                 model_type.change(
                     fn=update_voice_options,
                     inputs=[model_type],
-                    outputs=[parler_options]
+                    outputs=[parler_options, fish_options]
                 )
                 
                 generate_audio_button = gr.Button("Generate Audio")
@@ -441,8 +460,9 @@ def create_interface():
                 
                 generate_audio_button.click(
                     fn=interface.generate_podcast_audio,
-                    inputs=[transcript_file_dropdown, model_type, 
-                           speaker1_voice, speaker2_voice, speaker3_voice],
+                    inputs=[transcript_file_dropdown, model_type,
+                           speaker1_voice, speaker2_voice, speaker3_voice,
+                           fish_reference, fish_emotion],
                     outputs=[audio_output, audio_status]
                 )
         
