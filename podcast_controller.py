@@ -27,8 +27,8 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Generate an educational podcast on any topic')
     parser.add_argument('--topic', required=True, help='Topic to generate a podcast about')
-    parser.add_argument('--tts-model', default='bark', choices=['bark', 'parler'], 
-                        help='TTS model to use (default: bark)')
+    parser.add_argument('--tts-model', default='fish', choices=['bark', 'parler', 'fish'],
+                        help='TTS model to use (default: fish)')
     parser.add_argument('--config', default='config.yaml', 
                         help='Path to configuration file (default: config.yaml)')
     parser.add_argument('--output', help='Output path for the audio file')
