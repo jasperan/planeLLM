@@ -99,15 +99,15 @@ def get_status():
         fish_ok = False
 
     return {
-        "oci_sdk": oci_ok,
+        "oci_config": oci_ok,
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "fish_sdk": fish_ok,
-        "resources": {
-            "questions": _count_resources(suffix=".txt", keyword="questions"),
-            "content": _count_resources(suffix=".txt", keyword="content"),
-            "transcripts": _count_resources(suffix=".txt", keyword="podcast"),
-            "audio": _count_resources(suffix=".mp3"),
-        },
+        "resources_count": sum([
+            _count_resources(suffix=".txt", keyword="questions"),
+            _count_resources(suffix=".txt", keyword="content"),
+            _count_resources(suffix=".txt", keyword="podcast"),
+            _count_resources(suffix=".mp3"),
+        ]),
     }
 
 

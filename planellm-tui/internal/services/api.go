@@ -99,7 +99,7 @@ func (c *APIClient) GenerateAudio(transcriptFile, ttsModel, fishRef, fishEmotion
 	body := map[string]string{
 		"transcript_file":   transcriptFile,
 		"tts_model":         ttsModel,
-		"fish_reference_id": fishRef,
+		"fish_reference": fishRef,
 		"fish_emotion":      fishEmotion,
 	}
 	return &r, c.post("/api/audio/generate", body, &r)
