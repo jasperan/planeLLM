@@ -10,6 +10,8 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 os.makedirs("./resources", exist_ok=True)
@@ -21,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Serve generated audio/text files from resources/
+app.mount("/resources", StaticFiles(directory="resources"), name="resources")
 
 RESOURCES = Path("./resources")
 
@@ -247,6 +252,20 @@ def generate_audio(req: AudioRequest):
             "message": str(e),
             "audio_file": "",
         }
+
+
+STATIC_DIR = Path("./static")
+
+
+@app.get("/")
+def serve_frontend():
+    """Serve the planeLLM web UI."""
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+# Catch-all for static assets (CSS/JS/images if added later).
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 if __name__ == "__main__":
