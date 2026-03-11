@@ -177,6 +177,7 @@ resources/
 
 # planeLLM TUI
 planellm-tui/bin/
+planellm-tui/planellm-tui
 
 # Plans and generated output
 docs/plans/
