@@ -39,6 +39,7 @@ import time
 import yaml
 import re
 import shutil
+from pathlib import Path
 from typing import Dict, List, Optional, Union, Tuple
 from pydub import AudioSegment
 import tempfile
@@ -65,8 +66,8 @@ class TTSGenerator:
         """
         self.model_type = model_type.lower()
         
-        if self.model_type not in ["bark", "parler", "coqui"]:
-            raise ValueError("Unsupported TTS model type. Choose 'bark', 'parler', or 'coqui'")
+        if self.model_type not in ["bark", "parler", "coqui", "fish"]:
+            raise ValueError("Unsupported TTS model type. Choose 'bark', 'parler', 'coqui', or 'fish'")
         
         # Check for FFmpeg dependencies
         self.ffmpeg_available = self._check_ffmpeg()
@@ -83,6 +84,8 @@ class TTSGenerator:
             self._init_bark()
         elif self.model_type == "parler":
             self._init_parler()
+        elif self.model_type == "fish":
+            self._init_fish()
         else:  # coqui
             self._init_coqui()
         
@@ -199,7 +202,145 @@ class TTSGenerator:
             self.model_type = "bark"
             self._init_bark()
             self.parler_available = False
-    
+
+    def _init_fish(self) -> None:
+        """Initialize Fish Speech S2 TTS."""
+        print("Initializing Fish Speech S2 TTS...")
+        try:
+            from fishaudio import FishAudio
+
+            api_key = os.environ.get("FISH_API_KEY", "")
+            base_url = os.environ.get("FISH_BASE_URL", "https://api.fish.audio")
+            self.fish_reference_id = os.environ.get("FISH_REFERENCE_ID", "")
+
+            kwargs = {"api_key": api_key}
+            if base_url != "https://api.fish.audio":
+                kwargs["base_url"] = base_url
+
+            self.fish_client = FishAudio(**kwargs)
+            self.sample_rate = 24000
+
+            # Scan for local voice references
+            self.fish_voice_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "voices", "fish")
+            os.makedirs(self.fish_voice_dir, exist_ok=True)
+            self.fish_voices = {}
+            for wav in sorted(Path(self.fish_voice_dir).glob("*.wav")):
+                name = wav.stem
+                transcript = ""
+                txt_path = wav.with_suffix(".txt")
+                if txt_path.exists():
+                    transcript = txt_path.read_text().strip()
+                self.fish_voices[name] = {
+                    "audio": wav.read_bytes(),
+                    "transcript": transcript,
+                }
+
+            # Map speakers to Fish voices or reference IDs
+            voice_names = list(self.fish_voices.keys())
+            self.fish_speaker_map = {
+                "Speaker 1": voice_names[0] if len(voice_names) > 0 else self.fish_reference_id,
+                "Speaker 2": voice_names[1] if len(voice_names) > 1 else self.fish_reference_id,
+                "Speaker 3": voice_names[2] if len(voice_names) > 2 else self.fish_reference_id,
+            }
+
+            # Emotion tag mapping for natural conversation markers
+            self.fish_emotion_map = {
+                "laughs": "[laugh]",
+                "chuckles": "[laugh]",
+                "sighs": "[sigh]",
+                "pauses": "[pause]",
+                "hmm": "[hmm]",
+            }
+
+            self.fish_available = True
+            print(f"Fish Speech S2 initialized (endpoint: {base_url})")
+            if voice_names:
+                print(f"  Local voices: {', '.join(voice_names)}")
+            if self.fish_reference_id:
+                print(f"  Cloud reference: {self.fish_reference_id}")
+
+        except ImportError:
+            print("WARNING: fish-audio-sdk not found. Install with: pip install fish-audio-sdk")
+            print("Falling back to Bark TTS.")
+            self.model_type = "bark"
+            self._init_bark()
+            self.fish_available = False
+        except Exception as e:
+            print(f"WARNING: Error initializing Fish Speech S2: {e}. Falling back to Bark.")
+            self.model_type = "bark"
+            self._init_bark()
+            self.fish_available = False
+
+    def _generate_audio_fish(self, text: str, speaker: str) -> AudioSegment:
+        """Generate audio using Fish Speech S2."""
+        import io
+        import wave
+        from fishaudio.types import ReferenceAudio
+
+        try:
+            kwargs = {}
+            voice_key = self.fish_speaker_map.get(speaker, self.fish_reference_id)
+
+            if voice_key in self.fish_voices:
+                v = self.fish_voices[voice_key]
+                kwargs["references"] = [
+                    ReferenceAudio(audio=v["audio"], text=v["transcript"])
+                ]
+            elif voice_key:
+                kwargs["reference_id"] = voice_key
+
+            # Map natural markers to Fish emotion tags
+            processed_text = text
+            for marker, tag in self.fish_emotion_map.items():
+                processed_text = processed_text.replace(f"[{marker}]", tag)
+            processed_text = re.sub(r'\[.*?\]', '', processed_text)
+            processed_text = re.sub(r'\s+', ' ', processed_text).strip()
+
+            if not processed_text:
+                return AudioSegment.silent(duration=500)
+
+            wav_bytes = self.fish_client.tts.convert(
+                text=processed_text, format="wav", **kwargs
+            )
+
+            buf = io.BytesIO(wav_bytes)
+            with wave.open(buf, "rb") as wf:
+                sr = wf.getframerate()
+                n_ch = wf.getnchannels()
+                sw = wf.getsampwidth()
+                frames = wf.readframes(wf.getnframes())
+
+            if sw == 2:
+                audio_np = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+            elif sw == 4:
+                audio_np = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+            else:
+                audio_np = np.frombuffer(frames, dtype=np.float32)
+
+            if n_ch > 1:
+                audio_np = audio_np.reshape(-1, n_ch).mean(axis=1)
+
+            max_val = np.abs(audio_np).max()
+            if max_val > 1.0:
+                audio_np = audio_np / max_val
+
+            audio_int16 = (audio_np * 32767).astype(np.int16)
+
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+
+            import scipy.io.wavfile as wavfile
+            wavfile.write(tmp_path, rate=sr, data=audio_int16)
+            audio_segment = AudioSegment.from_wav(tmp_path)
+            os.unlink(tmp_path)
+
+            self.sample_rate = sr
+            return audio_segment
+
+        except Exception as e:
+            print(f"Error generating audio with Fish Speech: {e}")
+            return AudioSegment.silent(duration=max(1000, len(text) * 50))
+
     def _init_coqui(self) -> None:
         """Initialize the Coqui TTS model."""
         print("Initializing Coqui TTS model...")
@@ -647,6 +788,8 @@ class TTSGenerator:
                     elif self.model_type == "parler":
                         voice_type = self.speaker_voice_map.get(speaker, "male_clear")
                         voice = voice_type
+                    elif self.model_type == "fish":
+                        voice = self.fish_speaker_map.get(speaker, self.fish_reference_id)
                     else:  # coqui
                         voice = self.speakers.get(speaker, 'default')
                     
@@ -657,10 +800,13 @@ class TTSGenerator:
                     voice = speaker_voices[speaker]
                     print(f"  Using consistent voice for {speaker}: {voice}")
                 
-                # For Parler, we don't need to chunk the text as it can handle longer inputs
+                # For Parler and Fish, we don't need to chunk the text as they can handle longer inputs
                 if self.model_type == "parler":
                     print(f"  Generating audio for entire segment ({len(text)} chars)")
                     segment_audio = self._generate_audio_parler(text, speaker)
+                elif self.model_type == "fish":
+                    print(f"  Generating audio with Fish Speech S2 ({len(text)} chars)")
+                    segment_audio = self._generate_audio_fish(text, speaker)
                 else:
                     # Split long text into smaller chunks (max 150 chars) for other models
                     chunks = []
