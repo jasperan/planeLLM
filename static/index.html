@@ -3,62 +3,70 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>planeLLM — Bite-sized Podcasts</title>
+<title>planeLLM — Podcast Studio</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 /* ============================================================
-   planeLLM — Midnight Broadcast Console
-   Aviation meets radio station. Analog warmth, digital precision.
+   planeLLM — Midnight Broadcast Console v2
+   Aviation instrument panel × radio broadcast studio.
+   Analog warmth, digital precision, cinematic depth.
    ============================================================ */
 
 :root {
-  --bg-deep: #060a14;
-  --bg-base: #0b1022;
-  --bg-surface: #111831;
-  --bg-elevated: #182040;
-  --bg-glass: rgba(17, 24, 49, 0.7);
+  --bg-deep: #050910;
+  --bg-base: #0a0f1e;
+  --bg-surface: #0f1629;
+  --bg-elevated: #151d38;
+  --bg-glass: rgba(15, 22, 41, 0.85);
+  --bg-input: #0c1220;
 
   --cyan: #00d4ff;
-  --cyan-dim: #00d4ff44;
-  --cyan-glow: 0 0 20px #00d4ff33, 0 0 60px #00d4ff11;
+  --cyan-mid: #00a8cc;
+  --cyan-dim: rgba(0, 212, 255, 0.15);
+  --cyan-glow: 0 0 20px rgba(0, 212, 255, 0.2), 0 0 60px rgba(0, 212, 255, 0.06);
+  --cyan-glow-strong: 0 0 30px rgba(0, 212, 255, 0.35), 0 0 80px rgba(0, 212, 255, 0.12);
+
   --amber: #ff8c38;
-  --amber-dim: #ff8c3844;
-  --amber-glow: 0 0 20px #ff8c3833;
+  --amber-dim: rgba(255, 140, 56, 0.15);
+  --amber-glow: 0 0 20px rgba(255, 140, 56, 0.2);
+
   --green: #00e87b;
-  --green-dim: #00e87b44;
+  --green-dim: rgba(0, 232, 123, 0.15);
   --red: #ff4466;
-  --red-dim: #ff446644;
+  --red-dim: rgba(255, 68, 102, 0.15);
   --purple: #a78bfa;
+  --purple-dim: rgba(167, 139, 250, 0.15);
 
   --text: #e2e8f4;
   --text-secondary: #8b95b0;
   --text-muted: #4a5578;
   --text-inverse: #0b1022;
 
-  --border: #1e2a4a;
-  --border-active: #2a3a60;
+  --border: #1a2340;
+  --border-hover: #253055;
+  --border-active: #2a3a6a;
 
   --radius: 12px;
   --radius-sm: 8px;
   --radius-lg: 20px;
+  --radius-xl: 28px;
 
   --font-display: 'Syne', sans-serif;
   --font-body: 'DM Sans', sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  --transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --transition: 0.3s var(--ease-out);
   --transition-fast: 0.15s ease;
+
+  --sidebar-width: 260px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-html {
-  font-size: 15px;
-  scroll-behavior: smooth;
-  -webkit-font-smoothing: antialiased;
-}
+html { font-size: 15px; scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
 
 body {
   font-family: var(--font-body);
@@ -68,72 +76,71 @@ body {
   overflow-x: hidden;
 }
 
-/* ---- Noise Overlay ---- */
+/* Noise texture overlay */
 body::before {
   content: '';
   position: fixed;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.025'/%3E%3C/svg%3E");
   pointer-events: none;
   z-index: 9999;
 }
 
-/* ---- Scrollbar ---- */
-::-webkit-scrollbar { width: 6px; }
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* ---- Layout Shell ---- */
+/* ---- App Shell ---- */
 .app {
   display: grid;
-  grid-template-columns: 260px 1fr;
-  grid-template-rows: auto 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
   min-height: 100vh;
 }
 
 /* ---- Sidebar ---- */
 .sidebar {
-  grid-row: 1 / -1;
   background: var(--bg-base);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  position: sticky;
+  position: fixed;
   top: 0;
-  height: 100vh;
+  left: 0;
+  bottom: 0;
+  width: var(--sidebar-width);
   z-index: 100;
+  overflow-y: auto;
 }
 
 .sidebar-header {
-  padding: 28px 24px 20px;
+  padding: 24px 20px 20px;
   border-bottom: 1px solid var(--border);
 }
 
 .logo {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   text-decoration: none;
-  color: var(--text);
+  color: inherit;
 }
 
 .logo-icon {
-  width: 42px;
-  height: 42px;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
   position: relative;
 }
 
-.logo-icon svg {
-  width: 100%;
-  height: 100%;
-}
+.logo-icon svg { width: 100%; height: 100%; }
 
 .logo-text {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.35rem;
-  letter-spacing: -0.02em;
+  font-size: 1.3rem;
+  letter-spacing: -0.04em;
   background: linear-gradient(135deg, var(--cyan), #6dd5fa);
   -webkit-background-clip: text;
   background-clip: text;
@@ -146,51 +153,45 @@ body::before {
   color: var(--text-muted);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
-/* Sidebar Navigation */
-.sidebar-nav {
-  flex: 1;
-  padding: 16px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
+/* Sidebar Nav */
+.sidebar-nav { padding: 16px 12px; flex: 1; }
 
 .nav-section-label {
   font-family: var(--font-mono);
   font-size: 0.6rem;
-  color: var(--text-muted);
-  letter-spacing: 0.12em;
+  font-weight: 500;
   text-transform: uppercase;
-  padding: 16px 12px 8px;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  padding: 12px 12px 8px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 11px 14px;
+  padding: 10px 12px;
   border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: var(--transition-fast);
-  border: 1px solid transparent;
-  position: relative;
-  font-size: 0.9rem;
-  font-weight: 500;
   color: var(--text-secondary);
   text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  position: relative;
+  user-select: none;
 }
 
 .nav-item:hover {
-  background: var(--bg-surface);
+  background: var(--bg-elevated);
   color: var(--text);
 }
 
 .nav-item.active {
-  background: var(--bg-surface);
-  border-color: var(--border-active);
+  background: var(--cyan-dim);
   color: var(--cyan);
 }
 
@@ -201,368 +202,365 @@ body::before {
   top: 50%;
   transform: translateY(-50%);
   width: 3px;
-  height: 60%;
+  height: 20px;
   background: var(--cyan);
   border-radius: 0 3px 3px 0;
+}
+
+.step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 500;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.nav-item.active .step-num {
+  background: var(--cyan);
+  color: var(--text-inverse);
+}
+
+.nav-item.completed .step-num {
+  background: var(--green);
+  color: var(--text-inverse);
 }
 
 .nav-icon {
   width: 20px;
   height: 20px;
+  flex-shrink: 0;
   opacity: 0.6;
-  flex-shrink: 0;
+  transition: var(--transition);
 }
 
-.nav-item.active .nav-icon { opacity: 1; }
+.nav-item.active .nav-icon,
+.nav-item:hover .nav-icon { opacity: 1; }
 
-.nav-item .step-num {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  background: var(--bg-elevated);
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.nav-item.active .step-num {
-  background: var(--cyan-dim);
-  color: var(--cyan);
-}
-
-/* Sidebar Status */
+/* Status indicator in sidebar */
 .sidebar-status {
-  padding: 16px;
+  padding: 16px 20px;
   border-top: 1px solid var(--border);
 }
 
-.status-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.status-chip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  padding: 6px 8px;
-  background: var(--bg-surface);
-  border-radius: 6px;
-}
-
 .status-dot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  flex-shrink: 0;
+  display: inline-block;
+  margin-right: 8px;
+  position: relative;
 }
 
-.status-dot.ok { background: var(--green); box-shadow: 0 0 6px var(--green-dim); }
-.status-dot.err { background: var(--red); box-shadow: 0 0 6px var(--red-dim); }
-.status-dot.loading {
-  background: var(--amber);
-  animation: pulse-dot 1.5s ease-in-out infinite;
+.status-dot.online {
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(0, 232, 123, 0.5);
 }
 
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+.status-dot.online::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 232, 123, 0.3);
+  animation: pulse-ring 2s ease-out infinite;
 }
 
-/* ---- Top Bar ---- */
-.topbar {
-  height: 56px;
-  background: var(--bg-base);
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 32px;
-  position: sticky;
-  top: 0;
-  z-index: 90;
-  backdrop-filter: blur(12px);
+.status-dot.offline { background: var(--red); }
+
+@keyframes pulse-ring {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1.8); opacity: 0; }
 }
 
-.topbar-title {
+.status-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ---- Main Content ---- */
+.main {
+  margin-left: var(--sidebar-width);
+  padding: 32px 40px 48px;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Ambient glow behind main content */
+.main::before {
+  content: '';
+  position: fixed;
+  top: -200px;
+  right: -200px;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(0, 212, 255, 0.04) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+/* ---- Page Header ---- */
+.page-header {
+  margin-bottom: 32px;
+  animation: fade-up 0.5s var(--ease-out);
+}
+
+.page-header h1 {
   font-family: var(--font-display);
   font-weight: 700;
-  font-size: 1.1rem;
-  letter-spacing: -0.01em;
-}
-
-.topbar-actions {
+  font-size: 1.8rem;
+  letter-spacing: -0.03em;
+  color: var(--text);
   display: flex;
   align-items: center;
   gap: 12px;
 }
 
-.topbar-badge {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--cyan);
-  background: var(--cyan-dim);
-  padding: 4px 10px;
-  border-radius: 20px;
-  border: 1px solid #00d4ff22;
+.page-header h1 .header-icon {
+  width: 32px;
+  height: 32px;
+  opacity: 0.7;
 }
 
-/* ---- Main Content ---- */
-.main {
-  padding: 32px;
-  max-width: 1100px;
-}
-
-/* ---- Page Sections ---- */
-.page { display: none; }
-.page.active { display: block; animation: fadeIn 0.35s ease; }
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* ---- Section Headers ---- */
-.section-header {
-  margin-bottom: 28px;
-}
-
-.section-tag {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--amber);
-  margin-bottom: 8px;
-}
-
-.section-title {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 1.8rem;
-  letter-spacing: -0.03em;
-  line-height: 1.1;
-  margin-bottom: 8px;
-}
-
-.section-desc {
-  color: var(--text-secondary);
+.page-header .subtitle {
   font-size: 0.9rem;
-  line-height: 1.6;
-  max-width: 560px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  line-height: 1.5;
 }
 
-/* ---- Cards / Panels ---- */
+.page-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  border-radius: 100px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-left: 12px;
+}
+
+/* ---- Cards ---- */
 .card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 24px;
-  margin-bottom: 20px;
+  transition: var(--transition);
+  position: relative;
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan-dim), transparent);
+  opacity: 0;
   transition: var(--transition);
 }
 
-.card:hover {
-  border-color: var(--border-active);
-}
+.card:hover::before { opacity: 1; }
 
-.card-label {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin-bottom: 14px;
+.card-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-}
-
-.card-label .dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--cyan);
-}
-
-/* ---- Inputs ---- */
-.input-group {
+  justify-content: space-between;
   margin-bottom: 20px;
 }
 
-.input-label {
+.card-title {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.card-title .card-icon {
+  width: 20px;
+  height: 20px;
+  color: var(--cyan);
+}
+
+/* ---- Form Controls ---- */
+.form-group { margin-bottom: 20px; }
+
+.form-label {
   display: block;
   font-family: var(--font-mono);
   font-size: 0.7rem;
-  letter-spacing: 0.08em;
+  font-weight: 500;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--text-secondary);
   margin-bottom: 8px;
 }
 
-.text-input {
+.form-input,
+.form-select,
+.form-textarea {
   width: 100%;
-  padding: 13px 16px;
-  background: var(--bg-elevated);
+  background: var(--bg-input);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  padding: 12px 16px;
   color: var(--text);
   font-family: var(--font-body);
-  font-size: 0.95rem;
-  transition: var(--transition-fast);
+  font-size: 0.9rem;
+  transition: var(--transition);
   outline: none;
 }
 
-.text-input::placeholder {
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px var(--cyan-dim), var(--cyan-glow);
+}
+
+.form-input::placeholder,
+.form-textarea::placeholder {
   color: var(--text-muted);
 }
 
-.text-input:focus {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px var(--cyan-dim);
-}
-
-textarea.text-input {
+.form-textarea {
   resize: vertical;
   min-height: 120px;
+  font-size: 0.85rem;
   line-height: 1.6;
 }
 
-.select-input {
-  width: 100%;
-  padding: 13px 16px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-family: var(--font-body);
-  font-size: 0.95rem;
-  cursor: pointer;
-  outline: none;
+.form-select {
   appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%234a5578' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%238b95b0' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 36px;
-  transition: var(--transition-fast);
+  cursor: pointer;
 }
 
-.select-input:focus {
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px var(--cyan-dim);
+.form-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 6px;
 }
 
-.select-input option {
-  background: var(--bg-elevated);
-  color: var(--text);
-}
-
-/* ---- Checkbox ---- */
-.checkbox-wrap {
+/* Toggle / Checkbox */
+.toggle-wrap {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
-  padding: 8px 0;
+  user-select: none;
 }
 
-.checkbox-wrap input[type="checkbox"] {
-  appearance: none;
-  width: 18px;
-  height: 18px;
-  border: 1.5px solid var(--border-active);
-  border-radius: 4px;
+.toggle-track {
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
   background: var(--bg-elevated);
-  cursor: pointer;
+  border: 1px solid var(--border);
   position: relative;
-  transition: var(--transition-fast);
+  transition: var(--transition);
   flex-shrink: 0;
 }
 
-.checkbox-wrap input[type="checkbox"]:checked {
-  background: var(--cyan);
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: var(--transition);
+}
+
+.toggle-wrap input { display: none; }
+
+.toggle-wrap input:checked + .toggle-track {
+  background: var(--cyan-dim);
   border-color: var(--cyan);
 }
 
-.checkbox-wrap input[type="checkbox"]:checked::after {
-  content: '';
-  position: absolute;
-  left: 5px;
-  top: 2px;
-  width: 5px;
-  height: 9px;
-  border: solid var(--bg-deep);
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
+.toggle-wrap input:checked + .toggle-track::after {
+  transform: translateX(18px);
+  background: var(--cyan);
 }
 
-.checkbox-label {
-  font-size: 0.88rem;
+.toggle-label {
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
-/* ---- Radio Pills ---- */
-.radio-pills {
+/* Radio group */
+.radio-group {
   display: flex;
-  gap: 0;
-  background: var(--bg-elevated);
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  overflow: hidden;
+  gap: 8px;
+  flex-wrap: wrap;
 }
+
+.radio-option {
+  position: relative;
+  cursor: pointer;
+}
+
+.radio-option input { display: none; }
 
 .radio-pill {
-  flex: 1;
-  padding: 11px 16px;
-  text-align: center;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  transition: var(--transition-fast);
-  border-right: 1px solid var(--border);
-  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 100px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  transition: var(--transition);
+  white-space: nowrap;
 }
 
-.radio-pill:last-child { border-right: none; }
+.radio-pill:hover {
+  border-color: var(--border-hover);
+  color: var(--text);
+}
 
-.radio-pill:hover { color: var(--text-secondary); background: var(--bg-surface); }
-
-.radio-pill.active {
+.radio-option input:checked + .radio-pill {
+  border-color: var(--cyan);
   background: var(--cyan-dim);
   color: var(--cyan);
 }
 
-.radio-pill.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--cyan);
+.radio-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
 }
 
-.radio-pill .pill-sub {
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.55rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  margin-top: 2px;
-  opacity: 0.6;
+.radio-option input:checked + .radio-pill .radio-badge {
+  background: rgba(0, 212, 255, 0.2);
+  color: var(--cyan);
 }
 
 /* ---- Buttons ---- */
@@ -572,346 +570,204 @@ textarea.text-input {
   justify-content: center;
   gap: 8px;
   padding: 12px 24px;
-  border: none;
   border-radius: var(--radius-sm);
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: none;
   cursor: pointer;
   transition: var(--transition);
   position: relative;
   overflow: hidden;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, var(--cyan), #00a8cc);
+  background: linear-gradient(135deg, var(--cyan), var(--cyan-mid));
   color: var(--text-inverse);
-  box-shadow: var(--cyan-glow);
+  box-shadow: 0 2px 16px rgba(0, 212, 255, 0.2);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
+  box-shadow: var(--cyan-glow-strong);
   transform: translateY(-1px);
-  box-shadow: 0 0 30px #00d4ff44, 0 4px 20px #00d4ff22;
 }
 
-.btn-primary:active { transform: translateY(0); }
-
-.btn-primary:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn-secondary {
   background: var(--bg-elevated);
-  color: var(--text-secondary);
+  color: var(--text);
   border: 1px solid var(--border);
 }
 
-.btn-secondary:hover {
-  background: var(--bg-surface);
-  border-color: var(--border-active);
-  color: var(--text);
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--border-hover);
+  background: var(--border);
 }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 12px;
+}
+
+.btn-ghost:hover { color: var(--text); background: var(--bg-elevated); }
 
 .btn-icon {
-  width: 38px;
-  height: 38px;
-  padding: 0;
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: var(--transition-fast);
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
-.btn-icon:hover {
-  border-color: var(--border-active);
-  color: var(--text);
-}
-
+/* Button loading spinner */
 .btn .spinner {
   width: 16px;
   height: 16px;
   border: 2px solid transparent;
   border-top-color: currentColor;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
+  animation: spin 0.6s linear infinite;
 }
 
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ---- Row Layouts ---- */
-.row { display: flex; gap: 16px; align-items: flex-start; }
-.row > * { flex: 1; }
-.row.end { justify-content: flex-end; }
-.row.between { justify-content: space-between; align-items: center; }
-
-/* ---- Result Display ---- */
-.result-area {
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 20px;
-  font-family: var(--font-mono);
-  font-size: 0.78rem;
-  line-height: 1.8;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 400px;
-  overflow-y: auto;
-  position: relative;
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
-.result-area:empty::after {
-  content: 'Results will appear here...';
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.result-area.success { border-color: var(--green-dim); }
-.result-area.error { border-color: var(--red-dim); }
-
-/* ---- Status Bar (inline) ---- */
-.status-message {
+/* ---- Layout Helpers ---- */
+.row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
-  margin-top: 16px;
-  animation: fadeIn 0.25s ease;
+  gap: 20px;
 }
 
-.status-message.info {
-  background: var(--cyan-dim);
-  color: var(--cyan);
-  border: 1px solid #00d4ff22;
-}
+.row > .col { flex: 1; min-width: 0; }
+.row > .col-auto { flex: none; }
 
-.status-message.success {
-  background: var(--green-dim);
-  color: var(--green);
-  border: 1px solid #00e87b22;
-}
-
-.status-message.error {
-  background: var(--red-dim);
-  color: var(--red);
-  border: 1px solid #ff446622;
-}
-
-.status-message.loading {
-  background: var(--amber-dim);
-  color: var(--amber);
-  border: 1px solid #ff8c3822;
-}
-
-/* ---- Audio Player ---- */
-.audio-player-wrap {
-  background: var(--bg-base);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  display: none;
-}
-
-.audio-player-wrap.visible { display: block; animation: fadeIn 0.4s ease; }
-
-.audio-player-wrap audio {
-  width: 100%;
-  height: 48px;
-  border-radius: var(--radius-sm);
-  outline: none;
-}
-
-.audio-meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
-}
-
-.audio-meta .file-name {
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-}
-
-.audio-meta .badge {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--green-dim);
-  color: var(--green);
-}
-
-/* ---- Waveform Visualizer ---- */
-.waveform {
-  display: flex;
-  align-items: flex-end;
-  gap: 2px;
-  height: 48px;
-  padding: 0 4px;
-}
-
-.waveform .bar {
-  flex: 1;
-  background: var(--cyan);
-  border-radius: 2px 2px 0 0;
-  opacity: 0.3;
-  transition: height 0.15s ease;
-  min-width: 2px;
-}
-
-.waveform.active .bar {
-  animation: wave-bar 1.2s ease-in-out infinite alternate;
-}
-
-@keyframes wave-bar {
-  0% { height: 20%; opacity: 0.3; }
-  100% { height: 100%; opacity: 0.8; }
-}
-
-/* ---- Fish Speech Options Panel ---- */
-.options-panel {
-  overflow: hidden;
-  max-height: 0;
-  opacity: 0;
-  transition: max-height 0.4s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.3s ease, margin 0.3s ease;
-  margin-top: 0;
-}
-
-.options-panel.open {
-  max-height: 300px;
-  opacity: 1;
-  margin-top: 16px;
-}
-
-/* ---- Dashboard (Status Page) ---- */
-.dash-grid {
+.grid-2 {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
 }
 
-.gauge-card {
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+
+.grid-4 {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.gap-sm { gap: 12px; }
+.gap-lg { gap: 28px; }
+.mt-sm { margin-top: 12px; }
+.mt-md { margin-top: 20px; }
+.mt-lg { margin-top: 32px; }
+.mb-md { margin-bottom: 20px; }
+
+/* ---- Dashboard Stats ---- */
+.stat-card {
   background: var(--bg-surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 20px;
-  text-align: center;
-  position: relative;
-  overflow: hidden;
-}
-
-.gauge-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-}
-
-.gauge-card.ok::before { background: var(--green); }
-.gauge-card.err::before { background: var(--red); }
-.gauge-card.neutral::before { background: var(--text-muted); }
-
-.gauge-value {
-  font-family: var(--font-display);
-  font-weight: 800;
-  font-size: 2rem;
-  letter-spacing: -0.03em;
-  margin-bottom: 4px;
-}
-
-.gauge-value.ok { color: var(--green); }
-.gauge-value.err { color: var(--red); }
-.gauge-value.num { color: var(--cyan); }
-
-.gauge-label {
-  font-family: var(--font-mono);
-  font-size: 0.6rem;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-
-/* ---- File List ---- */
-.file-list {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 16px;
+  transition: var(--transition);
 }
 
-.file-item {
+.stat-card:hover {
+  border-color: var(--border-hover);
+}
+
+.stat-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-  color: var(--text-secondary);
-  transition: var(--transition-fast);
-}
-
-.file-item:hover {
-  border-color: var(--border-active);
-  color: var(--text);
-}
-
-.file-item .file-type {
-  font-size: 0.55rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  padding: 2px 6px;
-  border-radius: 3px;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.file-type.content { background: var(--cyan-dim); color: var(--cyan); }
-.file-type.transcript { background: var(--amber-dim); color: var(--amber); }
-.file-type.audio { background: var(--green-dim); color: var(--green); }
-.file-type.question { background: #a78bfa33; color: var(--purple); }
+.stat-icon svg { width: 20px; height: 20px; }
+.stat-icon.cyan { background: var(--cyan-dim); color: var(--cyan); }
+.stat-icon.amber { background: var(--amber-dim); color: var(--amber); }
+.stat-icon.green { background: var(--green-dim); color: var(--green); }
+.stat-icon.purple { background: var(--purple-dim); color: var(--purple); }
+
+.stat-info { flex: 1; }
+
+.stat-value {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.5rem;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
 
 /* ---- Progress Bar ---- */
-.progress-bar-wrap {
+.progress-wrap {
+  margin-top: 16px;
+  display: none;
+}
+
+.progress-wrap.visible { display: block; }
+
+.progress-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.progress-text {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.progress-pct {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--cyan);
+}
+
+.progress-track {
   width: 100%;
   height: 4px;
   background: var(--bg-elevated);
   border-radius: 2px;
   overflow: hidden;
-  margin-top: 12px;
-  display: none;
 }
 
-.progress-bar-wrap.visible { display: block; }
-
-.progress-bar {
+.progress-fill {
   height: 100%;
   background: linear-gradient(90deg, var(--cyan), var(--amber));
   border-radius: 2px;
   width: 0%;
-  transition: width 0.5s ease;
+  transition: width 0.6s var(--ease-out);
 }
 
-.progress-bar.indeterminate {
+.progress-fill.indeterminate {
   width: 30%;
   animation: progress-slide 1.5s ease-in-out infinite;
 }
@@ -919,6 +775,191 @@ textarea.text-input {
 @keyframes progress-slide {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(400%); }
+}
+
+/* ---- Output Panel ---- */
+.output-panel {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.output-panel.lg { max-height: 600px; }
+
+.output-panel:empty::after {
+  content: 'Output will appear here...';
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ---- Audio Player ---- */
+.audio-player {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  display: none;
+}
+
+.audio-player.visible { display: block; }
+
+.audio-player-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.audio-now-playing {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+}
+
+.audio-title {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.audio-wave-icon {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 16px;
+}
+
+.audio-wave-icon span {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--amber);
+}
+
+.audio-wave-icon.playing span {
+  animation: wave-bar 0.8s ease-in-out infinite alternate;
+}
+
+.audio-wave-icon span:nth-child(1) { height: 6px; animation-delay: 0s; }
+.audio-wave-icon span:nth-child(2) { height: 12px; animation-delay: 0.15s; }
+.audio-wave-icon span:nth-child(3) { height: 8px; animation-delay: 0.3s; }
+.audio-wave-icon span:nth-child(4) { height: 14px; animation-delay: 0.1s; }
+.audio-wave-icon span:nth-child(5) { height: 5px; animation-delay: 0.25s; }
+
+@keyframes wave-bar {
+  to { height: 3px; }
+}
+
+audio {
+  width: 100%;
+  height: 40px;
+  border-radius: 8px;
+  outline: none;
+}
+
+audio::-webkit-media-controls-panel {
+  background: var(--bg-elevated);
+}
+
+/* ---- File List ---- */
+.file-list {
+  list-style: none;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  cursor: default;
+  font-size: 0.85rem;
+}
+
+.file-item:hover { background: var(--bg-elevated); }
+
+.file-icon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.file-name {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.file-badge.questions { background: var(--cyan-dim); color: var(--cyan); }
+.file-badge.content { background: var(--amber-dim); color: var(--amber); }
+.file-badge.transcript { background: var(--green-dim); color: var(--green); }
+.file-badge.audio { background: var(--purple-dim); color: var(--purple); }
+
+/* ---- Notification Toast ---- */
+.toast-container {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10001;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 20px;
+  font-size: 0.85rem;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: toast-in 0.4s var(--ease-out);
+  max-width: 380px;
+}
+
+.toast.success { border-left: 3px solid var(--green); }
+.toast.error { border-left: 3px solid var(--red); }
+.toast.info { border-left: 3px solid var(--cyan); }
+
+.toast.removing {
+  animation: toast-out 0.3s ease forwards;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(40px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes toast-out {
+  to { opacity: 0; transform: translateX(40px); }
 }
 
 /* ---- Empty State ---- */
@@ -932,31 +973,98 @@ textarea.text-input {
   width: 48px;
   height: 48px;
   margin-bottom: 16px;
-  opacity: 0.3;
+  opacity: 0.25;
 }
 
 .empty-state p {
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   line-height: 1.6;
 }
 
-/* ---- Responsive ---- */
-@media (max-width: 768px) {
-  .app {
-    grid-template-columns: 1fr;
-  }
-  .sidebar {
-    position: fixed;
-    left: -280px;
-    transition: left 0.3s ease;
-    z-index: 1000;
-  }
-  .sidebar.open { left: 0; }
-  .main { padding: 20px; }
-  .row { flex-direction: column; }
+/* ---- Pipeline Stepper (top bar visual) ---- */
+.pipeline-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 32px;
+  padding: 16px 20px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
 }
 
-/* ---- Splash Overlay ---- */
+.pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  position: relative;
+}
+
+.pipeline-step:not(:last-child)::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+  margin: 0 16px;
+}
+
+.pipeline-step.active:not(:last-child)::after,
+.pipeline-step.completed:not(:last-child)::after {
+  background: linear-gradient(90deg, var(--cyan), var(--border));
+}
+
+.pipeline-step.completed:not(:last-child)::after {
+  background: var(--green);
+}
+
+.pipeline-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: var(--transition);
+}
+
+.pipeline-step.active .pipeline-dot {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  box-shadow: var(--cyan-glow);
+}
+
+.pipeline-step.completed .pipeline-dot {
+  border-color: var(--green);
+  background: var(--green);
+  color: var(--text-inverse);
+}
+
+.pipeline-step-label {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.pipeline-step.active .pipeline-step-label { color: var(--text); }
+.pipeline-step.completed .pipeline-step-label { color: var(--green); }
+
+/* ---- Pages ---- */
+.page { display: none; animation: fade-up 0.4s var(--ease-out); }
+.page.active { display: block; }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- Splash Screen ---- */
 .splash-overlay {
   position: fixed;
   inset: 0;
@@ -969,17 +1077,14 @@ textarea.text-input {
   transition: opacity 0.6s ease, visibility 0.6s ease;
 }
 
-.splash-overlay.hidden {
-  opacity: 0;
-  visibility: hidden;
-}
+.splash-overlay.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
 
 .splash-plane {
   font-family: var(--font-mono);
   font-size: 1.1rem;
   color: var(--cyan);
   white-space: pre;
-  animation: fly-in 1.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fly-in 1.5s var(--ease-out) forwards;
   opacity: 0;
 }
 
@@ -989,7 +1094,7 @@ textarea.text-input {
   100% { transform: translateX(0); opacity: 1; }
 }
 
-.splash-logo {
+.splash-logo-text {
   font-family: var(--font-display);
   font-weight: 800;
   font-size: 3rem;
@@ -1029,27 +1134,141 @@ textarea.text-input {
   animation: splash-bar 1s ease-in-out infinite alternate;
 }
 
-@keyframes fade-up {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 @keyframes splash-bar {
   to { height: 4px; opacity: 0.15; }
 }
 
-/* ---- Skeleton Loading ---- */
-.skeleton {
-  background: linear-gradient(90deg, var(--bg-elevated), var(--bg-surface), var(--bg-elevated));
-  background-size: 200% 100%;
-  animation: shimmer 1.5s ease-in-out infinite;
+/* ---- Transcript Preview ---- */
+.transcript-preview {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
+  padding: 20px;
+  max-height: 500px;
+  overflow-y: auto;
+  line-height: 1.7;
 }
 
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+.transcript-line {
+  margin-bottom: 12px;
+  font-size: 0.85rem;
 }
+
+.transcript-speaker {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.transcript-speaker.expert { color: var(--cyan); }
+.transcript-speaker.student { color: var(--amber); }
+.transcript-speaker.host { color: var(--green); }
+
+.transcript-text {
+  color: var(--text-secondary);
+}
+
+/* ---- Conditional Options ---- */
+.options-group {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.4s var(--ease-out), opacity 0.3s ease, margin 0.3s ease;
+  margin-top: 0;
+}
+
+.options-group.visible {
+  max-height: 400px;
+  opacity: 1;
+  margin-top: 20px;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 900px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .row { flex-direction: column; }
+}
+
+@media (max-width: 768px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 0.3s var(--ease-out);
+    z-index: 1000;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .main { margin-left: 0; padding: 20px; }
+  .mobile-toggle { display: flex !important; }
+}
+
+/* Mobile sidebar toggle */
+.mobile-toggle {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 16px;
+  z-index: 999;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text);
+}
+
+/* ---- Utility animations ---- */
+.animate-in {
+  animation: fade-up 0.5s var(--ease-out) both;
+}
+
+.animate-in:nth-child(1) { animation-delay: 0s; }
+.animate-in:nth-child(2) { animation-delay: 0.08s; }
+.animate-in:nth-child(3) { animation-delay: 0.16s; }
+.animate-in:nth-child(4) { animation-delay: 0.24s; }
+
+/* VU Meter */
+.vu-meter {
+  display: flex;
+  gap: 2px;
+  align-items: flex-end;
+  height: 24px;
+}
+
+.vu-bar {
+  width: 4px;
+  border-radius: 2px;
+  background: var(--cyan);
+  transition: height 0.1s ease;
+}
+
+/* Waveform Visualizer */
+.waveform-container {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  padding: 8px 0;
+}
+
+.waveform-bar {
+  width: 2px;
+  border-radius: 1px;
+  background: var(--cyan);
+  opacity: 0.3;
+  transition: height 0.15s ease, opacity 0.15s ease;
+}
+
+.waveform-bar.active {
+  opacity: 0.8;
+}
+
 </style>
 </head>
 
@@ -1059,10 +1278,18 @@ textarea.text-input {
 <div class="splash-overlay" id="splash">
   <div class="splash-plane">       __|__
   --@--@--(_)--@--@--</div>
-  <div class="splash-logo">planeLLM</div>
-  <div class="splash-tagline">Bite-sized podcasts powered by Fish Speech S2</div>
+  <div class="splash-logo-text">planeLLM</div>
+  <div class="splash-tagline">Bite-sized podcasts to learn about anything</div>
   <div class="splash-wave" id="splashWave"></div>
 </div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toasts"></div>
+
+<!-- Mobile Sidebar Toggle -->
+<button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+  <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+</button>
 
 <!-- App Shell -->
 <div class="app">
@@ -1070,9 +1297,9 @@ textarea.text-input {
   <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-header">
-      <a class="logo" href="#">
+      <a class="logo" href="#" onclick="navigate('dashboard'); return false;">
         <div class="logo-icon">
-          <svg viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 42 42" fill="none">
             <circle cx="21" cy="21" r="20" stroke="url(#lg)" stroke-width="1.5" opacity="0.3"/>
             <path d="M8 22h8l3-8 4 16 3-8h8" stroke="var(--cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             <defs><linearGradient id="lg" x1="0" y1="0" x2="42" y2="42"><stop stop-color="var(--cyan)"/><stop offset="1" stop-color="var(--amber)"/></linearGradient></defs>
@@ -1086,200 +1313,415 @@ textarea.text-input {
     </div>
 
     <nav class="sidebar-nav">
-      <div class="nav-section-label">Pipeline</div>
+      <div class="nav-section-label">Overview</div>
+      <a class="nav-item active" data-page="dashboard" href="#dashboard" role="button" tabindex="0" onclick="navigate('dashboard'); return false;">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </a>
 
-      <a class="nav-item active" data-page="topic" onclick="navigate('topic')">
+      <div class="nav-section-label">Pipeline</div>
+      <a class="nav-item" data-page="topic" href="#topic" role="button" tabindex="0" onclick="navigate('topic'); return false;">
         <span class="step-num">1</span>
         Topic Explorer
       </a>
-      <a class="nav-item" data-page="transcript" onclick="navigate('transcript')">
+      <a class="nav-item" data-page="transcript" href="#transcript" role="button" tabindex="0" onclick="navigate('transcript'); return false;">
         <span class="step-num">2</span>
         Transcript Writer
       </a>
-      <a class="nav-item" data-page="audio" onclick="navigate('audio')">
+      <a class="nav-item" data-page="audio" href="#audio" role="button" tabindex="0" onclick="navigate('audio'); return false;">
         <span class="step-num">3</span>
         Audio Generator
       </a>
 
-      <div class="nav-section-label">System</div>
-
-      <a class="nav-item" data-page="status" onclick="navigate('status')">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-          <circle cx="10" cy="10" r="8"/><path d="M10 6v4l3 3"/>
-        </svg>
-        Dashboard
-      </a>
-      <a class="nav-item" data-page="files" onclick="navigate('files')">
-        <svg class="nav-icon" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5">
-          <rect x="3" y="2" width="14" height="16" rx="2"/><path d="M7 6h6M7 10h6M7 14h3"/>
-        </svg>
-        Files
+      <div class="nav-section-label">Library</div>
+      <a class="nav-item" data-page="library" href="#library" role="button" tabindex="0" onclick="navigate('library'); return false;">
+        <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+        All Files
       </a>
     </nav>
 
-    <div class="sidebar-status" id="sidebarStatus">
-      <div class="status-grid">
-        <div class="status-chip"><span class="status-dot loading" id="dotOci"></span>OCI</div>
-        <div class="status-chip"><span class="status-dot loading" id="dotFfmpeg"></span>FFmpeg</div>
-        <div class="status-chip"><span class="status-dot loading" id="dotFish"></span>Fish SDK</div>
-        <div class="status-chip"><span class="status-dot loading" id="dotApi"></span>API</div>
-      </div>
+    <div class="sidebar-status">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-text" id="statusText">Checking...</span>
     </div>
   </aside>
-
-  <!-- Top Bar -->
-  <header class="topbar">
-    <div class="topbar-title" id="topbarTitle">Topic Explorer</div>
-    <div class="topbar-actions">
-      <span class="topbar-badge" id="resourceBadge">0 files</span>
-      <button class="btn-icon" onclick="refreshStatus()" title="Refresh status">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2m0 0v4m0-4h4"/></svg>
-      </button>
-    </div>
-  </header>
 
   <!-- Main Content -->
   <main class="main">
 
-    <!-- ==================== TOPIC EXPLORER ==================== -->
-    <section class="page active" id="page-topic">
-      <div class="section-header">
-        <div class="section-tag">Stage 01 / Explore</div>
-        <h1 class="section-title">Topic Explorer</h1>
-        <p class="section-desc">Enter any topic and the LLM generates research questions, then explores each to build a comprehensive knowledge base for your podcast.</p>
+    <!-- ========== DASHBOARD ========== -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-header">
+        <h1>Dashboard</h1>
+        <p class="subtitle">Your podcast generation studio at a glance.</p>
       </div>
 
-      <div class="card">
-        <div class="card-label"><span class="dot"></span>Input</div>
-        <div class="input-group">
-          <label class="input-label" for="topicInput">Topic</label>
-          <input class="text-input" id="topicInput" type="text" placeholder="e.g., Quantum Computing, Black Holes, Ancient Rome..." autocomplete="off">
+      <div class="grid-4 animate-in" id="statsGrid">
+        <div class="stat-card">
+          <div class="stat-icon cyan">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value" id="statTopics">0</div>
+            <div class="stat-label">Topics explored</div>
+          </div>
         </div>
-        <div class="row between">
-          <div></div>
-          <button class="btn btn-primary" id="topicBtn" onclick="generateTopic()">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 8h12M10 4l4 4-4 4"/></svg>
-            Generate Content
-          </button>
+        <div class="stat-card">
+          <div class="stat-icon amber">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value" id="statContent">0</div>
+            <div class="stat-label">Content files</div>
+          </div>
         </div>
-        <div class="progress-bar-wrap" id="topicProgress"><div class="progress-bar indeterminate"></div></div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value" id="statTranscripts">0</div>
+            <div class="stat-label">Transcripts</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          </div>
+          <div class="stat-info">
+            <div class="stat-value" id="statAudio">0</div>
+            <div class="stat-label">Podcasts</div>
+          </div>
+        </div>
       </div>
 
-      <div id="topicStatus"></div>
-
-      <div class="row" id="topicResults" style="display:none">
-        <div class="card" style="flex:1">
-          <div class="card-label"><span class="dot"></span>Generated Questions</div>
-          <div class="result-area" id="topicQuestions"></div>
-        </div>
-        <div class="card" style="flex:1.5">
-          <div class="card-label"><span class="dot"></span>Explored Content</div>
-          <div class="result-area" id="topicContent"></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- ==================== TRANSCRIPT WRITER ==================== -->
-    <section class="page" id="page-transcript">
-      <div class="section-header">
-        <div class="section-tag">Stage 02 / Write</div>
-        <h1 class="section-title">Transcript Writer</h1>
-        <p class="section-desc">Transform raw content into a natural multi-speaker podcast transcript with conversation flow, personality, and pacing.</p>
-      </div>
-
-      <div class="card">
-        <div class="card-label"><span class="dot"></span>Configuration</div>
-
-        <div class="input-group">
-          <label class="input-label" for="contentFileSelect">Content File</label>
-          <div class="row" style="gap:8px">
-            <select class="select-input" id="contentFileSelect">
-              <option value="">Loading files...</option>
-            </select>
-            <button class="btn-icon" onclick="refreshFiles('content')" title="Refresh file list">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2m0 0v4m0-4h4"/></svg>
+      <div class="row mt-lg gap-lg">
+        <div class="col">
+          <div class="card animate-in">
+            <div class="card-header">
+              <div class="card-title">
+                <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                Quick Start
+              </div>
+            </div>
+            <p style="color: var(--text-secondary); font-size: 0.88rem; line-height: 1.6; margin-bottom: 20px;">
+              Generate a podcast in 3 steps: explore a topic, create a conversational transcript, then synthesize audio.
+            </p>
+            <button class="btn btn-primary" onclick="navigate('topic')">
+              <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              Start New Topic
             </button>
           </div>
         </div>
+        <div class="col">
+          <div class="card animate-in">
+            <div class="card-header">
+              <div class="card-title">
+                <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                Recent Files
+              </div>
+              <button class="btn btn-ghost" onclick="navigate('library')">View all</button>
+            </div>
+            <ul class="file-list" id="recentFiles">
+              <li class="empty-state" style="padding: 24px 12px;">
+                <p>No files yet. Start by exploring a topic.</p>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
-        <label class="checkbox-wrap">
-          <input type="checkbox" id="detailedCheck" checked>
-          <span class="checkbox-label">Detailed mode — process each question individually for richer content</span>
-        </label>
-
-        <div class="row between" style="margin-top:16px">
-          <div></div>
-          <button class="btn btn-primary" id="transcriptBtn" onclick="createTranscript()">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h10v10H3z"/><path d="M6 7h4M6 10h2"/></svg>
-            Create Transcript
+      <div class="card mt-lg animate-in">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            System Status
+          </div>
+          <button class="btn btn-ghost" onclick="checkStatus()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Refresh
           </button>
         </div>
-        <div class="progress-bar-wrap" id="transcriptProgress"><div class="progress-bar indeterminate"></div></div>
-      </div>
-
-      <div id="transcriptStatus"></div>
-
-      <div class="card" id="transcriptResultCard" style="display:none">
-        <div class="card-label"><span class="dot"></span>Transcript Preview</div>
-        <div class="result-area" id="transcriptResult"></div>
-      </div>
-    </section>
-
-    <!-- ==================== AUDIO GENERATOR ==================== -->
-    <section class="page" id="page-audio">
-      <div class="section-header">
-        <div class="section-tag">Stage 03 / Broadcast</div>
-        <h1 class="section-title">Audio Generator</h1>
-        <p class="section-desc">Bring your transcript to life with AI voices. Fish Speech S2 delivers studio-quality synthesis with emotion control and voice cloning.</p>
-      </div>
-
-      <div class="card">
-        <div class="card-label"><span class="dot"></span>Source</div>
-
-        <div class="input-group">
-          <label class="input-label" for="transcriptFileSelect">Transcript File</label>
-          <div class="row" style="gap:8px">
-            <select class="select-input" id="transcriptFileSelect">
-              <option value="">Loading files...</option>
-            </select>
-            <button class="btn-icon" onclick="refreshFiles('transcripts')" title="Refresh file list">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2m0 0v4m0-4h4"/></svg>
-            </button>
+        <div class="grid-3" id="systemStatus">
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="status-dot" id="ociStatus"></span>
+            <span style="font-size:0.85rem;">OCI GenAI SDK</span>
           </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="status-dot" id="ffmpegStatus"></span>
+            <span style="font-size:0.85rem;">FFmpeg</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span class="status-dot" id="fishStatus"></span>
+            <span style="font-size:0.85rem;">Fish Audio SDK</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== TOPIC EXPLORER ========== -->
+    <div class="page" id="page-topic">
+      <div class="page-header">
+        <h1>
+          Topic Explorer
+          <span class="page-badge">Step 1</span>
+        </h1>
+        <p class="subtitle">Enter any topic and we'll generate educational questions and in-depth content using OCI GenAI.</p>
+      </div>
+
+      <div class="pipeline-stepper">
+        <div class="pipeline-step active">
+          <div class="pipeline-dot">1</div>
+          <span class="pipeline-step-label">Explore</span>
+        </div>
+        <div class="pipeline-step">
+          <div class="pipeline-dot">2</div>
+          <span class="pipeline-step-label">Transcript</span>
+        </div>
+        <div class="pipeline-step">
+          <div class="pipeline-dot">3</div>
+          <span class="pipeline-step-label">Audio</span>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-label"><span class="dot"></span>TTS Engine</div>
-
-        <div class="input-group">
-          <label class="input-label">Model</label>
-          <div class="radio-pills" id="ttsModelPills">
-            <div class="radio-pill active" data-value="fish" onclick="selectTTS('fish')">
-              Fish Speech S2
-              <span class="pill-sub">Recommended</span>
-            </div>
-            <div class="radio-pill" data-value="parler" onclick="selectTTS('parler')">
-              Parler TTS
-              <span class="pill-sub">Fast / Local</span>
-            </div>
-            <div class="radio-pill" data-value="bark" onclick="selectTTS('bark')">
-              Bark
-              <span class="pill-sub">Multilingual</span>
-            </div>
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Topic Input
           </div>
         </div>
 
-        <!-- Fish Speech Options -->
-        <div class="options-panel open" id="fishOptions">
-          <div class="row">
-            <div class="input-group" style="margin-bottom:0">
-              <label class="input-label" for="fishRefInput">Voice Reference ID</label>
-              <input class="text-input" id="fishRefInput" type="text" placeholder="Cloud voice ID (optional)">
+        <div class="form-group">
+          <label class="form-label" for="topicInput">Topic</label>
+          <input class="form-input" id="topicInput" type="text" placeholder="e.g. Quantum Computing, Ancient Rome, Machine Learning..." autocomplete="off">
+          <p class="form-hint">Enter any subject — we'll generate questions and explore each one in depth.</p>
+        </div>
+
+        <button class="btn btn-primary" id="btnGenerateTopic" onclick="generateTopic()">
+          <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+          Generate Content
+        </button>
+
+        <div class="progress-wrap" id="topicProgress">
+          <div class="progress-label">
+            <span class="progress-text" id="topicProgressText">Initializing...</span>
+            <span class="progress-pct" id="topicProgressPct"></span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill indeterminate" id="topicProgressBar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid-2 mt-lg" id="topicResults" style="display:none;">
+        <div class="card animate-in">
+          <div class="card-header">
+            <div class="card-title">
+              <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              Generated Questions
             </div>
-            <div class="input-group" style="margin-bottom:0">
-              <label class="input-label" for="fishEmotionSelect">Emotion</label>
-              <select class="select-input" id="fishEmotionSelect">
+          </div>
+          <div class="output-panel" id="topicQuestions"></div>
+        </div>
+        <div class="card animate-in">
+          <div class="card-header">
+            <div class="card-title">
+              <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              Content Preview
+            </div>
+          </div>
+          <div class="output-panel lg" id="topicContent"></div>
+        </div>
+      </div>
+
+      <div class="mt-lg" id="topicNextStep" style="display:none;">
+        <button class="btn btn-primary" onclick="navigate('transcript')">
+          Continue to Transcript Writer
+          <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- ========== TRANSCRIPT WRITER ========== -->
+    <div class="page" id="page-transcript">
+      <div class="page-header">
+        <h1>
+          Transcript Writer
+          <span class="page-badge">Step 2</span>
+        </h1>
+        <p class="subtitle">Transform educational content into an engaging conversational podcast transcript.</p>
+      </div>
+
+      <div class="pipeline-stepper">
+        <div class="pipeline-step completed">
+          <div class="pipeline-dot">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <span class="pipeline-step-label">Explore</span>
+        </div>
+        <div class="pipeline-step active">
+          <div class="pipeline-dot">2</div>
+          <span class="pipeline-step-label">Transcript</span>
+        </div>
+        <div class="pipeline-step">
+          <div class="pipeline-dot">3</div>
+          <span class="pipeline-step-label">Audio</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            Transcript Settings
+          </div>
+          <button class="btn btn-ghost" onclick="refreshFiles()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="contentFileSelect">Content File</label>
+          <select class="form-select" id="contentFileSelect">
+            <option value="">Select a content file...</option>
+          </select>
+          <p class="form-hint">Choose a content file generated from the Topic Explorer.</p>
+        </div>
+
+        <div class="form-group">
+          <label class="toggle-wrap">
+            <input type="checkbox" id="detailedToggle" checked>
+            <span class="toggle-track"></span>
+            <span class="toggle-label">Detailed Processing — process each question individually for richer transcripts</span>
+          </label>
+        </div>
+
+        <button class="btn btn-primary" id="btnCreateTranscript" onclick="createTranscript()">
+          <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          Create Transcript
+        </button>
+
+        <div class="progress-wrap" id="transcriptProgress">
+          <div class="progress-label">
+            <span class="progress-text" id="transcriptProgressText">Processing...</span>
+            <span class="progress-pct" id="transcriptProgressPct"></span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill indeterminate" id="transcriptProgressBar"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mt-lg" id="transcriptResult" style="display:none;">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            Generated Transcript
+          </div>
+          <span style="font-family:var(--font-mono);font-size:0.7rem;color:var(--text-muted);" id="transcriptFilename"></span>
+        </div>
+        <div class="transcript-preview" id="transcriptPreview"></div>
+
+        <div class="mt-md">
+          <button class="btn btn-primary" onclick="navigate('audio')">
+            Continue to Audio Generator
+            <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== AUDIO GENERATOR ========== -->
+    <div class="page" id="page-audio">
+      <div class="page-header">
+        <h1>
+          Audio Generator
+          <span class="page-badge">Step 3</span>
+        </h1>
+        <p class="subtitle">Synthesize your podcast transcript into natural-sounding audio with AI voices.</p>
+      </div>
+
+      <div class="pipeline-stepper">
+        <div class="pipeline-step completed">
+          <div class="pipeline-dot">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <span class="pipeline-step-label">Explore</span>
+        </div>
+        <div class="pipeline-step completed">
+          <div class="pipeline-dot">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+          <span class="pipeline-step-label">Transcript</span>
+        </div>
+        <div class="pipeline-step active">
+          <div class="pipeline-dot">3</div>
+          <span class="pipeline-step-label">Audio</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">
+            <svg class="card-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+            Audio Settings
+          </div>
+          <button class="btn btn-ghost" onclick="refreshFiles()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="transcriptFileSelect">Transcript File</label>
+          <select class="form-select" id="transcriptFileSelect">
+            <option value="">Select a transcript file...</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">TTS Model</label>
+          <div class="radio-group" id="ttsModelGroup">
+            <label class="radio-option">
+              <input type="radio" name="ttsModel" value="fish" checked>
+              <span class="radio-pill">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                Fish Speech S2
+                <span class="radio-badge">Cloud</span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="ttsModel" value="parler">
+              <span class="radio-pill">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                Parler TTS
+                <span class="radio-badge">Local</span>
+              </span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="ttsModel" value="bark">
+              <span class="radio-pill">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/><path d="M19 10v2a7 7 0 01-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+                Bark
+                <span class="radio-badge">Local</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Fish Audio Options -->
+        <div class="options-group visible" id="fishOptions">
+          <div class="grid-2">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label" for="fishReference">Voice Reference ID</label>
+              <input class="form-input" id="fishReference" type="text" placeholder="Optional cloud voice ID">
+              <p class="form-hint">Leave empty for default voices.</p>
+            </div>
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label" for="fishEmotion">Emotion Style</label>
+              <select class="form-select" id="fishEmotion">
                 <option value="(neutral)">Neutral</option>
                 <option value="[excited]">Excited</option>
                 <option value="[whisper]">Whisper</option>
@@ -1293,31 +1735,32 @@ textarea.text-input {
         </div>
 
         <!-- Parler Options -->
-        <div class="options-panel" id="parlerOptions">
-          <div class="row">
-            <div class="input-group" style="margin-bottom:0">
-              <label class="input-label">Speaker 1 (Expert)</label>
-              <select class="select-input" id="parlerSpeaker1">
+        <div class="options-group" id="parlerOptions">
+          <div class="grid-3">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Speaker 1 (Expert)</label>
+              <select class="form-select" id="parlerSpeaker1">
                 <option value="male_clear">Male Clear</option>
                 <option value="male_expressive">Male Expressive</option>
                 <option value="male_deep">Male Deep</option>
                 <option value="male_casual">Male Casual</option>
               </select>
             </div>
-            <div class="input-group" style="margin-bottom:0">
-              <label class="input-label">Speaker 2 (Student)</label>
-              <select class="select-input" id="parlerSpeaker2">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Speaker 2 (Student)</label>
+              <select class="form-select" id="parlerSpeaker2">
                 <option value="female_expressive" selected>Female Expressive</option>
                 <option value="female_clear">Female Clear</option>
                 <option value="female_warm">Female Warm</option>
                 <option value="female_casual">Female Casual</option>
               </select>
             </div>
-            <div class="input-group" style="margin-bottom:0">
-              <label class="input-label">Speaker 3</label>
-              <select class="select-input" id="parlerSpeaker3">
+            <div class="form-group" style="margin-bottom:0">
+              <label class="form-label">Speaker 3 (2nd Expert)</label>
+              <select class="form-select" id="parlerSpeaker3">
                 <option value="male_expressive" selected>Male Expressive</option>
                 <option value="male_clear">Male Clear</option>
+                <option value="male_deep">Male Deep</option>
                 <option value="female_expressive">Female Expressive</option>
                 <option value="female_warm">Female Warm</option>
               </select>
@@ -1325,456 +1768,590 @@ textarea.text-input {
           </div>
         </div>
 
-        <div class="row between" style="margin-top:20px">
-          <div class="waveform" id="audioWaveform">
-            <!-- bars injected by JS -->
-          </div>
-          <button class="btn btn-primary" id="audioBtn" onclick="generateAudio()">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2l10 6-10 6z"/></svg>
+        <div class="mt-md">
+          <button class="btn btn-primary" id="btnGenerateAudio" onclick="generateAudio()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg>
             Generate Audio
           </button>
         </div>
-        <div class="progress-bar-wrap" id="audioProgress"><div class="progress-bar indeterminate"></div></div>
+
+        <div class="progress-wrap" id="audioProgress">
+          <div class="progress-label">
+            <span class="progress-text" id="audioProgressText">Synthesizing...</span>
+            <span class="progress-pct" id="audioProgressPct"></span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill indeterminate" id="audioProgressBar"></div>
+          </div>
+        </div>
       </div>
 
-      <div id="audioStatus"></div>
-
-      <div class="audio-player-wrap" id="audioPlayerWrap">
-        <div class="audio-meta">
-          <span class="badge">MP3</span>
-          <span class="file-name" id="audioFileName"></span>
+      <!-- Audio Player -->
+      <div class="audio-player mt-lg" id="audioPlayerCard">
+        <div class="audio-player-header">
+          <div class="audio-wave-icon" id="audioWaveIcon">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <div class="audio-now-playing">Now Playing</div>
+            <div class="audio-title" id="audioTitle">podcast.mp3</div>
+          </div>
         </div>
-        <audio controls id="audioPlayer"></audio>
+        <audio controls id="audioElement"></audio>
       </div>
-    </section>
+    </div>
 
-    <!-- ==================== DASHBOARD ==================== -->
-    <section class="page" id="page-status">
-      <div class="section-header">
-        <div class="section-tag">System</div>
-        <h1 class="section-title">Dashboard</h1>
-        <p class="section-desc">Health checks and resource overview for the planeLLM backend services.</p>
+    <!-- ========== LIBRARY ========== -->
+    <div class="page" id="page-library">
+      <div class="page-header">
+        <h1>File Library</h1>
+        <p class="subtitle">Browse all generated content — questions, content files, transcripts, and audio.</p>
       </div>
 
-      <div class="dash-grid" id="dashGrid">
-        <div class="gauge-card neutral" id="gaugeOci">
-          <div class="gauge-value" id="gaugeOciVal">--</div>
-          <div class="gauge-label">OCI GenAI SDK</div>
+      <div class="row mb-md">
+        <div class="col">
+          <div class="radio-group" id="libraryFilter">
+            <label class="radio-option">
+              <input type="radio" name="libFilter" value="all" checked onchange="filterLibrary('all')">
+              <span class="radio-pill">All</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="libFilter" value="questions" onchange="filterLibrary('questions')">
+              <span class="radio-pill">Questions</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="libFilter" value="content" onchange="filterLibrary('content')">
+              <span class="radio-pill">Content</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="libFilter" value="transcripts" onchange="filterLibrary('transcripts')">
+              <span class="radio-pill">Transcripts</span>
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="libFilter" value="audio" onchange="filterLibrary('audio')">
+              <span class="radio-pill">Audio</span>
+            </label>
+          </div>
         </div>
-        <div class="gauge-card neutral" id="gaugeFfmpeg">
-          <div class="gauge-value" id="gaugeFfmpegVal">--</div>
-          <div class="gauge-label">FFmpeg</div>
-        </div>
-        <div class="gauge-card neutral" id="gaugeFish">
-          <div class="gauge-value" id="gaugeFishVal">--</div>
-          <div class="gauge-label">Fish Audio SDK</div>
-        </div>
-        <div class="gauge-card neutral" id="gaugeResources">
-          <div class="gauge-value num" id="gaugeResourcesVal">--</div>
-          <div class="gauge-label">Total Resources</div>
+        <div class="col-auto">
+          <button class="btn btn-secondary" onclick="refreshFiles()">
+            <svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>
+            Refresh
+          </button>
         </div>
       </div>
 
       <div class="card">
-        <div class="card-label"><span class="dot"></span>API Connection</div>
-        <div class="row" style="gap:12px; align-items:center">
-          <span class="status-dot loading" id="dashApiDot" style="width:8px;height:8px"></span>
-          <span style="font-family:var(--font-mono);font-size:0.8rem;color:var(--text-secondary)" id="dashApiUrl">Checking...</span>
-          <button class="btn btn-secondary" onclick="refreshStatus()" style="margin-left:auto;padding:8px 16px;font-size:0.8rem">Refresh</button>
-        </div>
+        <ul class="file-list" id="libraryFileList">
+          <li class="empty-state">
+            <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
+            <p>No files found. Generate some content to get started.</p>
+          </li>
+        </ul>
       </div>
-    </section>
-
-    <!-- ==================== FILES ==================== -->
-    <section class="page" id="page-files">
-      <div class="section-header">
-        <div class="section-tag">Resources</div>
-        <h1 class="section-title">Files</h1>
-        <p class="section-desc">All generated content, transcripts, and audio files in the resources directory.</p>
-      </div>
-
-      <div class="row between" style="margin-bottom:20px">
-        <div></div>
-        <button class="btn btn-secondary" onclick="loadAllFiles()">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 8A6 6 0 1 1 8 2m0 0v4m0-4h4"/></svg>
-          Refresh
-        </button>
-      </div>
-
-      <div class="file-list" id="fileList">
-        <div class="empty-state">
-          <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="4" width="32" height="40" rx="4"/><path d="M16 14h16M16 22h16M16 30h8"/></svg>
-          <p>No files yet. Generate a topic to get started.</p>
-        </div>
-      </div>
-    </section>
+    </div>
 
   </main>
 </div>
 
 <script>
 /* ============================================================
-   planeLLM Frontend — Application Logic
+   planeLLM — Frontend Application Logic
    ============================================================ */
 
-const API = window.location.origin;
-let currentTTS = 'fish';
-let cachedFiles = null;
+// ---- State ----
+const state = {
+  currentPage: 'dashboard',
+  files: { questions: [], content: [], transcripts: [], audio: [] },
+  status: null,
+  lastGeneratedContent: null,
+  lastGeneratedTranscript: null,
+  libraryFilter: 'all'
+};
 
 // ---- Splash Screen ----
 (function initSplash() {
   const wave = document.getElementById('splashWave');
-  for (let i = 0; i < 24; i++) {
-    const span = document.createElement('span');
-    span.style.animationDelay = `${i * 0.08}s`;
-    span.style.height = `${6 + Math.random() * 18}px`;
-    wave.appendChild(span);
+  for (let i = 0; i < 12; i++) {
+    const bar = document.createElement('span');
+    bar.style.animationDelay = `${i * 0.08}s`;
+    wave.appendChild(bar);
   }
   setTimeout(() => {
     document.getElementById('splash').classList.add('hidden');
   }, 2200);
 })();
 
-// ---- Waveform Bars ----
-(function initWaveform() {
-  const wf = document.getElementById('audioWaveform');
-  for (let i = 0; i < 40; i++) {
-    const bar = document.createElement('div');
-    bar.className = 'bar';
-    bar.style.height = `${10 + Math.random() * 30}%`;
-    bar.style.animationDelay = `${i * 0.05}s`;
-    wf.appendChild(bar);
-  }
-})();
-
 // ---- Navigation ----
-const pageTitles = {
-  topic: 'Topic Explorer',
-  transcript: 'Transcript Writer',
-  audio: 'Audio Generator',
-  status: 'Dashboard',
-  files: 'Files'
-};
-
 function navigate(page) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('page-' + page).classList.add('active');
-  document.querySelector(`[data-page="${page}"]`).classList.add('active');
-  document.getElementById('topbarTitle').textContent = pageTitles[page] || page;
+  state.currentPage = page;
 
-  if (page === 'transcript' || page === 'audio' || page === 'files') {
-    loadAllFiles();
-  }
-  if (page === 'status') {
-    refreshStatus();
-  }
-}
-
-// ---- TTS Model Selection ----
-function selectTTS(model) {
-  currentTTS = model;
-  document.querySelectorAll('#ttsModelPills .radio-pill').forEach(p => {
-    p.classList.toggle('active', p.dataset.value === model);
-  });
-  document.getElementById('fishOptions').classList.toggle('open', model === 'fish');
-  document.getElementById('parlerOptions').classList.toggle('open', model === 'parler');
-}
-
-// ---- Status / Health ----
-async function refreshStatus() {
-  const dots = { oci: 'dotOci', ffmpeg: 'dotFfmpeg', fish: 'dotFish', api: 'dotApi' };
-  Object.values(dots).forEach(id => {
-    const el = document.getElementById(id);
-    el.className = 'status-dot loading';
+  // Update sidebar
+  document.querySelectorAll('.nav-item').forEach(item => {
+    item.classList.toggle('active', item.dataset.page === page);
   });
 
-  try {
-    const res = await fetch(API + '/api/status');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+  // Update pages
+  document.querySelectorAll('.page').forEach(p => {
+    p.classList.remove('active');
+  });
+  const target = document.getElementById(`page-${page}`);
+  if (target) {
+    target.classList.add('active');
+    // Re-trigger animation
+    target.style.animation = 'none';
+    target.offsetHeight; // reflow
+    target.style.animation = '';
+  }
 
-    setDot('dotOci', data.oci_config);
-    setDot('dotFfmpeg', data.ffmpeg);
-    setDot('dotFish', data.fish_sdk);
-    setDot('dotApi', true);
+  // Close mobile sidebar
+  document.getElementById('sidebar').classList.remove('open');
 
-    // Dashboard page
-    setGauge('gaugeOci', 'gaugeOciVal', data.oci_config);
-    setGauge('gaugeFfmpeg', 'gaugeFfmpegVal', data.ffmpeg);
-    setGauge('gaugeFish', 'gaugeFishVal', data.fish_sdk);
-
-    document.getElementById('gaugeResourcesVal').textContent = data.resources_count;
-    document.getElementById('gaugeResources').className = 'gauge-card neutral';
-
-    document.getElementById('resourceBadge').textContent = data.resources_count + ' files';
-    document.getElementById('dashApiDot').className = 'status-dot ok';
-    document.getElementById('dashApiUrl').textContent = API + '/api/status — Connected';
-
-  } catch (e) {
-    Object.values(dots).forEach(id => setDot(id, false));
-    document.getElementById('dashApiDot').className = 'status-dot err';
-    document.getElementById('dashApiUrl').textContent = 'Cannot reach API — is the server running on port 7880?';
+  // Refresh file lists when navigating to relevant pages
+  if (['transcript', 'audio', 'library', 'dashboard'].includes(page)) {
+    refreshFiles();
   }
 }
 
-function setDot(id, ok) {
-  document.getElementById(id).className = 'status-dot ' + (ok ? 'ok' : 'err');
+// ---- API Helpers ----
+async function api(method, path, body = null) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json' }
+  };
+  if (body) opts.body = JSON.stringify(body);
+
+  const res = await fetch(path, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(err.detail || `HTTP ${res.status}`);
+  }
+  return res.json();
 }
 
-function setGauge(cardId, valId, ok) {
-  const card = document.getElementById(cardId);
-  const val = document.getElementById(valId);
-  card.className = 'gauge-card ' + (ok ? 'ok' : 'err');
-  val.className = 'gauge-value ' + (ok ? 'ok' : 'err');
-  val.textContent = ok ? 'OK' : 'OFF';
+// ---- Toast Notifications ----
+function showToast(message, type = 'info') {
+  const container = document.getElementById('toasts');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+
+  const icons = {
+    success: '<svg width="16" height="16" fill="none" stroke="var(--green)" stroke-width="2" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 11-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+    error: '<svg width="16" height="16" fill="none" stroke="var(--red)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+    info: '<svg width="16" height="16" fill="none" stroke="var(--cyan)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+  };
+
+  toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.classList.add('removing');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
 }
 
-// ---- Files ----
-async function loadAllFiles() {
+// ---- Status Check ----
+async function checkStatus() {
   try {
-    const res = await fetch(API + '/api/files');
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    cachedFiles = await res.json();
-    populateDropdowns();
-    renderFileList();
+    const data = await api('GET', '/api/status');
+    state.status = data;
+
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    const allOk = data.oci_config && data.ffmpeg;
+
+    dot.className = `status-dot ${allOk ? 'online' : 'offline'}`;
+    text.textContent = allOk ? 'All systems go' : 'Some services unavailable';
+
+    // Update system status indicators
+    setStatusDot('ociStatus', data.oci_config);
+    setStatusDot('ffmpegStatus', data.ffmpeg);
+    setStatusDot('fishStatus', data.fish_sdk);
+
   } catch (e) {
-    console.warn('Failed to load files:', e);
+    document.getElementById('statusDot').className = 'status-dot offline';
+    document.getElementById('statusText').textContent = 'API unreachable';
   }
 }
 
-function populateDropdowns() {
-  if (!cachedFiles) return;
+function setStatusDot(id, ok) {
+  const el = document.getElementById(id);
+  if (el) el.className = `status-dot ${ok ? 'online' : 'offline'}`;
+}
 
+// ---- File Management ----
+async function refreshFiles() {
+  try {
+    const data = await api('GET', '/api/files');
+    state.files = data;
+    updateFileSelectors();
+    updateDashboardStats();
+    updateRecentFiles();
+    updateLibrary();
+  } catch (e) {
+    console.error('Failed to refresh files:', e);
+  }
+}
+
+function updateFileSelectors() {
+  // Content file selector (transcript page)
   const contentSelect = document.getElementById('contentFileSelect');
-  const transcriptSelect = document.getElementById('transcriptFileSelect');
-
-  fillSelect(contentSelect, cachedFiles.content, 'Select a content file...');
-  fillSelect(transcriptSelect, cachedFiles.transcripts, 'Select a transcript file...');
-}
-
-function fillSelect(el, items, placeholder) {
-  el.innerHTML = '';
-  const opt = document.createElement('option');
-  opt.value = '';
-  opt.textContent = items.length ? placeholder : 'No files available';
-  el.appendChild(opt);
-  items.forEach(f => {
-    const o = document.createElement('option');
-    o.value = f;
-    o.textContent = f;
-    el.appendChild(o);
+  const currentContent = contentSelect.value;
+  contentSelect.innerHTML = '<option value="">Select a content file...</option>';
+  state.files.content.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    contentSelect.appendChild(opt);
   });
+  if (currentContent && state.files.content.includes(currentContent)) {
+    contentSelect.value = currentContent;
+  }
+  // Auto-select if we just generated content
+  if (state.lastGeneratedContent && state.files.content.includes(state.lastGeneratedContent)) {
+    contentSelect.value = state.lastGeneratedContent;
+  }
+
+  // Transcript file selector (audio page)
+  const transcriptSelect = document.getElementById('transcriptFileSelect');
+  const currentTranscript = transcriptSelect.value;
+  transcriptSelect.innerHTML = '<option value="">Select a transcript file...</option>';
+  state.files.transcripts.forEach(f => {
+    const opt = document.createElement('option');
+    opt.value = f;
+    opt.textContent = f;
+    transcriptSelect.appendChild(opt);
+  });
+  if (currentTranscript && state.files.transcripts.includes(currentTranscript)) {
+    transcriptSelect.value = currentTranscript;
+  }
+  if (state.lastGeneratedTranscript && state.files.transcripts.includes(state.lastGeneratedTranscript)) {
+    transcriptSelect.value = state.lastGeneratedTranscript;
+  }
 }
 
-function refreshFiles(type) {
-  loadAllFiles();
+function updateDashboardStats() {
+  document.getElementById('statTopics').textContent = state.files.questions.length;
+  document.getElementById('statContent').textContent = state.files.content.length;
+  document.getElementById('statTranscripts').textContent = state.files.transcripts.length;
+  document.getElementById('statAudio').textContent = state.files.audio.length;
 }
 
-function renderFileList() {
-  const list = document.getElementById('fileList');
-  if (!cachedFiles) return;
+function updateRecentFiles() {
+  const container = document.getElementById('recentFiles');
+  const allFiles = [
+    ...state.files.questions.map(f => ({ name: f, type: 'questions' })),
+    ...state.files.content.map(f => ({ name: f, type: 'content' })),
+    ...state.files.transcripts.map(f => ({ name: f, type: 'transcript' })),
+    ...state.files.audio.map(f => ({ name: f, type: 'audio' }))
+  ].sort((a, b) => b.name.localeCompare(a.name)).slice(0, 6);
 
-  const all = [
-    ...cachedFiles.content.map(f => ({ name: f, type: 'content' })),
-    ...cachedFiles.questions.map(f => ({ name: f, type: 'question' })),
-    ...cachedFiles.transcripts.map(f => ({ name: f, type: 'transcript' })),
-    ...cachedFiles.audio.map(f => ({ name: f, type: 'audio' })),
-  ];
-
-  if (all.length === 0) {
-    list.innerHTML = `<div class="empty-state">
-      <svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="8" y="4" width="32" height="40" rx="4"/><path d="M16 14h16M16 22h16M16 30h8"/></svg>
-      <p>No files yet. Generate a topic to get started.</p>
-    </div>`;
+  if (allFiles.length === 0) {
+    container.innerHTML = '<li class="empty-state" style="padding:24px 12px;"><p>No files yet. Start by exploring a topic.</p></li>';
     return;
   }
 
-  list.innerHTML = all.map(f => `
-    <div class="file-item">
-      <span class="file-type ${f.type}">${f.type}</span>
-      <span>${f.name}</span>
-    </div>
+  container.innerHTML = allFiles.map(f => `
+    <li class="file-item">
+      ${getFileIconSVG(f.type)}
+      <span class="file-name">${f.name}</span>
+      <span class="file-badge ${f.type}">${f.type}</span>
+    </li>
   `).join('');
 }
 
-// ---- Status Messages ----
-function showStatus(containerId, type, message) {
-  const el = document.getElementById(containerId);
-  const icon = type === 'loading'
-    ? '<div class="spinner" style="width:14px;height:14px;border:2px solid transparent;border-top-color:currentColor;border-radius:50%;animation:spin .7s linear infinite"></div>'
-    : type === 'success' ? '&#10003;' : type === 'error' ? '&#10007;' : '&#9432;';
-  el.innerHTML = `<div class="status-message ${type}">${icon} ${message}</div>`;
+function getFileIconSVG(type) {
+  const icons = {
+    questions: '<svg class="file-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+    content: '<svg class="file-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+    transcript: '<svg class="file-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>',
+    audio: '<svg class="file-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>'
+  };
+  return icons[type] || icons.content;
 }
 
-function clearStatus(containerId) {
-  document.getElementById(containerId).innerHTML = '';
+// ---- Library ----
+function updateLibrary() {
+  const container = document.getElementById('libraryFileList');
+  const filter = state.libraryFilter;
+
+  let files = [];
+  if (filter === 'all' || filter === 'questions') {
+    files.push(...state.files.questions.map(f => ({ name: f, type: 'questions' })));
+  }
+  if (filter === 'all' || filter === 'content') {
+    files.push(...state.files.content.map(f => ({ name: f, type: 'content' })));
+  }
+  if (filter === 'all' || filter === 'transcripts') {
+    files.push(...state.files.transcripts.map(f => ({ name: f, type: 'transcript' })));
+  }
+  if (filter === 'all' || filter === 'audio') {
+    files.push(...state.files.audio.map(f => ({ name: f, type: 'audio' })));
+  }
+
+  files.sort((a, b) => b.name.localeCompare(a.name));
+
+  if (files.length === 0) {
+    container.innerHTML = '<li class="empty-state"><svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg><p>No files found.</p></li>';
+    return;
+  }
+
+  container.innerHTML = files.map(f => {
+    const isAudio = f.type === 'audio';
+    const playBtn = isAudio ? `<button class="btn btn-ghost" onclick="playAudioFile('${f.name}')" style="padding:4px 8px;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>` : '';
+    return `
+      <li class="file-item">
+        ${getFileIconSVG(f.type)}
+        <span class="file-name">${f.name}</span>
+        <span class="file-badge ${f.type}">${f.type}</span>
+        ${playBtn}
+      </li>
+    `;
+  }).join('');
 }
 
-// ---- Progress Bars ----
-function showProgress(id) {
-  const wrap = document.getElementById(id);
-  wrap.classList.add('visible');
-  wrap.querySelector('.progress-bar').className = 'progress-bar indeterminate';
+function filterLibrary(filter) {
+  state.libraryFilter = filter;
+  updateLibrary();
 }
 
-function hideProgress(id) {
-  document.getElementById(id).classList.remove('visible');
-}
-
-// ---- Topic Explorer ----
+// ---- Pipeline: Topic Explorer ----
 async function generateTopic() {
   const topic = document.getElementById('topicInput').value.trim();
-  if (!topic) { showStatus('topicStatus', 'error', 'Please enter a topic'); return; }
+  if (!topic) {
+    showToast('Please enter a topic to explore.', 'error');
+    return;
+  }
 
-  const btn = document.getElementById('topicBtn');
+  const btn = document.getElementById('btnGenerateTopic');
+  const progress = document.getElementById('topicProgress');
+  const results = document.getElementById('topicResults');
+  const nextStep = document.getElementById('topicNextStep');
+
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Generating...';
-  showProgress('topicProgress');
-  clearStatus('topicStatus');
-  document.getElementById('topicResults').style.display = 'none';
+  btn.innerHTML = '<span class="spinner"></span> Generating...';
+  progress.classList.add('visible');
+  results.style.display = 'none';
+  nextStep.style.display = 'none';
+
+  document.getElementById('topicProgressText').textContent = 'Generating questions and exploring topic...';
 
   try {
-    const res = await fetch(API + '/api/topic/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic })
-    });
+    const data = await api('POST', '/api/topic/generate', { topic });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
 
-    if (!data.success) throw new Error(data.message || 'Generation failed');
+    // Show results
+    const questionsEl = document.getElementById('topicQuestions');
+    const contentEl = document.getElementById('topicContent');
 
-    // Display questions
-    const qEl = document.getElementById('topicQuestions');
-    if (data.questions && data.questions.length) {
-      qEl.textContent = data.questions.map((q, i) => `${i + 1}. ${q}`).join('\n');
+    if (data.questions && data.questions.length > 0) {
+      questionsEl.textContent = data.questions.map((q, i) => `${i + 1}. ${q}`).join('\n\n');
     } else {
-      qEl.textContent = 'No questions generated.';
+      questionsEl.textContent = 'No questions generated.';
     }
 
-    // Display content
-    const cEl = document.getElementById('topicContent');
-    cEl.textContent = data.content_preview || `Content saved to: ${data.content_file}`;
+    // Fetch the content file to show full content
+    try {
+      const contentRes = await fetch(`/resources/${data.content_file}`);
+      const contentText = await contentRes.text();
+      contentEl.textContent = contentText;
+    } catch {
+      contentEl.textContent = data.message;
+    }
 
-    document.getElementById('topicResults').style.display = 'flex';
-    showStatus('topicStatus', 'success', `Generated ${data.questions?.length || 0} questions — saved to ${data.content_file}`);
-    loadAllFiles();
+    results.style.display = '';
+    nextStep.style.display = '';
+    state.lastGeneratedContent = data.content_file;
+
+    showToast(data.message, 'success');
 
   } catch (e) {
-    showStatus('topicStatus', 'error', e.message);
+    showToast(`Error: ${e.message}`, 'error');
   } finally {
-    hideProgress('topicProgress');
     btn.disabled = false;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 8h12M10 4l4 4-4 4"/></svg> Generate Content';
+    btn.innerHTML = '<svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Content';
+    progress.classList.remove('visible');
   }
 }
 
-// ---- Transcript Writer ----
+// ---- Pipeline: Transcript Writer ----
 async function createTranscript() {
   const contentFile = document.getElementById('contentFileSelect').value;
-  if (!contentFile) { showStatus('transcriptStatus', 'error', 'Please select a content file'); return; }
+  if (!contentFile) {
+    showToast('Please select a content file.', 'error');
+    return;
+  }
 
-  const detailed = document.getElementById('detailedCheck').checked;
-  const btn = document.getElementById('transcriptBtn');
+  const detailed = document.getElementById('detailedToggle').checked;
+  const btn = document.getElementById('btnCreateTranscript');
+  const progress = document.getElementById('transcriptProgress');
+  const result = document.getElementById('transcriptResult');
+
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Creating...';
-  showProgress('transcriptProgress');
-  clearStatus('transcriptStatus');
-  document.getElementById('transcriptResultCard').style.display = 'none';
+  btn.innerHTML = '<span class="spinner"></span> Creating transcript...';
+  progress.classList.add('visible');
+  result.style.display = 'none';
+
+  document.getElementById('transcriptProgressText').textContent = detailed
+    ? 'Processing each question individually (this may take a few minutes)...'
+    : 'Generating podcast transcript...';
 
   try {
-    const res = await fetch(API + '/api/transcript/create', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content_file: contentFile, detailed })
+    const data = await api('POST', '/api/transcript/create', {
+      content_file: contentFile,
+      detailed
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
+    if (!data.success) throw new Error(data.message);
 
-    if (!data.success) throw new Error(data.message || 'Transcript creation failed');
+    state.lastGeneratedTranscript = data.transcript_file;
+    document.getElementById('transcriptFilename').textContent = data.transcript_file;
 
-    const preview = document.getElementById('transcriptResult');
-    preview.textContent = data.transcript_preview || 'Transcript created successfully.';
-    document.getElementById('transcriptResultCard').style.display = 'block';
+    // Fetch full transcript for preview
+    try {
+      const transRes = await fetch(`/resources/${data.transcript_file}`);
+      const transText = await transRes.text();
+      renderTranscriptPreview(transText);
+    } catch {
+      document.getElementById('transcriptPreview').textContent = data.transcript_preview || 'Transcript generated.';
+    }
 
-    showStatus('transcriptStatus', 'success', `Transcript saved to ${data.transcript_file}`);
-    loadAllFiles();
+    result.style.display = '';
+    showToast('Transcript created successfully!', 'success');
 
   } catch (e) {
-    showStatus('transcriptStatus', 'error', e.message);
+    showToast(`Error: ${e.message}`, 'error');
   } finally {
-    hideProgress('transcriptProgress');
     btn.disabled = false;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h10v10H3z"/><path d="M6 7h4M6 10h2"/></svg> Create Transcript';
+    btn.innerHTML = '<svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Create Transcript';
+    progress.classList.remove('visible');
   }
 }
 
-// ---- Audio Generator ----
+function renderTranscriptPreview(text) {
+  const container = document.getElementById('transcriptPreview');
+  const lines = text.split('\n').filter(l => l.trim());
+
+  container.innerHTML = lines.map(line => {
+    // Match speaker patterns like "Speaker 1:", "Expert:", "[Speaker 1]", etc.
+    const speakerMatch = line.match(/^(?:\[?(Speaker\s*\d+|Expert|Student|Host)\]?\s*:?\s*)(.*)/i);
+    if (speakerMatch) {
+      const speaker = speakerMatch[1].trim();
+      const text = speakerMatch[2].trim();
+      let cls = 'expert';
+      if (/student|2/i.test(speaker)) cls = 'student';
+      if (/host|3/i.test(speaker)) cls = 'host';
+      return `<div class="transcript-line"><div class="transcript-speaker ${cls}">${speaker}</div><div class="transcript-text">${escapeHTML(text)}</div></div>`;
+    }
+    return `<div class="transcript-line"><div class="transcript-text">${escapeHTML(line)}</div></div>`;
+  }).join('');
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ---- Pipeline: Audio Generator ----
 async function generateAudio() {
   const transcriptFile = document.getElementById('transcriptFileSelect').value;
-  if (!transcriptFile) { showStatus('audioStatus', 'error', 'Please select a transcript file'); return; }
+  if (!transcriptFile) {
+    showToast('Please select a transcript file.', 'error');
+    return;
+  }
 
-  const fishRef = document.getElementById('fishRefInput').value.trim();
-  const fishEmotion = document.getElementById('fishEmotionSelect').value;
+  const ttsModel = document.querySelector('input[name="ttsModel"]:checked').value;
+  const btn = document.getElementById('btnGenerateAudio');
+  const progress = document.getElementById('audioProgress');
 
-  const btn = document.getElementById('audioBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner"></div> Generating...';
-  showProgress('audioProgress');
-  clearStatus('audioStatus');
-  document.getElementById('audioPlayerWrap').classList.remove('visible');
-  document.getElementById('audioWaveform').classList.add('active');
+  btn.innerHTML = '<span class="spinner"></span> Generating audio...';
+  progress.classList.add('visible');
 
-  showStatus('audioStatus', 'loading', 'Generating audio — this may take several minutes...');
+  document.getElementById('audioProgressText').textContent = `Synthesizing with ${ttsModel}... This may take several minutes.`;
+
+  const body = {
+    transcript_file: transcriptFile,
+    tts_model: ttsModel,
+    fish_reference: document.getElementById('fishReference').value || '',
+    fish_emotion: document.getElementById('fishEmotion').value || '(neutral)'
+  };
 
   try {
-    const res = await fetch(API + '/api/audio/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        transcript_file: transcriptFile,
-        tts_model: currentTTS,
-        fish_reference: fishRef,
-        fish_emotion: fishEmotion
-      })
-    });
+    const data = await api('POST', '/api/audio/generate', body);
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    if (!data.success) throw new Error(data.message || 'Audio generation failed');
+    if (!data.success) throw new Error(data.message);
 
     // Show audio player
-    const player = document.getElementById('audioPlayer');
-    player.src = API + '/resources/' + data.audio_file;
-    document.getElementById('audioFileName').textContent = data.audio_file;
-    document.getElementById('audioPlayerWrap').classList.add('visible');
+    const playerCard = document.getElementById('audioPlayerCard');
+    const audioEl = document.getElementById('audioElement');
+    const waveIcon = document.getElementById('audioWaveIcon');
 
-    showStatus('audioStatus', 'success', `Audio generated — ${data.audio_file}`);
-    loadAllFiles();
+    playerCard.classList.add('visible');
+    document.getElementById('audioTitle').textContent = data.audio_file;
+    audioEl.src = `/resources/${data.audio_file}`;
+
+    audioEl.onplay = () => waveIcon.classList.add('playing');
+    audioEl.onpause = () => waveIcon.classList.remove('playing');
+    audioEl.onended = () => waveIcon.classList.remove('playing');
+
+    showToast('Audio generated successfully!', 'success');
 
   } catch (e) {
-    showStatus('audioStatus', 'error', e.message);
+    showToast(`Error: ${e.message}`, 'error');
   } finally {
-    hideProgress('audioProgress');
-    document.getElementById('audioWaveform').classList.remove('active');
     btn.disabled = false;
-    btn.innerHTML = '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 2l10 6-10 6z"/></svg> Generate Audio';
+    btn.innerHTML = '<svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Generate Audio';
+    progress.classList.remove('visible');
   }
 }
 
-// ---- Enter key on topic input ----
-document.getElementById('topicInput').addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') generateTopic();
+function playAudioFile(filename) {
+  navigate('audio');
+  setTimeout(() => {
+    const playerCard = document.getElementById('audioPlayerCard');
+    const audioEl = document.getElementById('audioElement');
+    const waveIcon = document.getElementById('audioWaveIcon');
+
+    playerCard.classList.add('visible');
+    document.getElementById('audioTitle').textContent = filename;
+    audioEl.src = `/resources/${filename}`;
+    audioEl.play();
+
+    audioEl.onplay = () => waveIcon.classList.add('playing');
+    audioEl.onpause = () => waveIcon.classList.remove('playing');
+    audioEl.onended = () => waveIcon.classList.remove('playing');
+  }, 100);
+}
+
+// ---- TTS Model Options Toggle ----
+document.querySelectorAll('input[name="ttsModel"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    const fishOpts = document.getElementById('fishOptions');
+    const parlerOpts = document.getElementById('parlerOptions');
+
+    fishOpts.classList.toggle('visible', this.value === 'fish');
+    parlerOpts.classList.toggle('visible', this.value === 'parler');
+  });
+});
+
+// ---- Keyboard Shortcuts ----
+document.addEventListener('keydown', function(e) {
+  // Enter to submit on topic page
+  if (e.key === 'Enter' && state.currentPage === 'topic' && e.target.id === 'topicInput') {
+    e.preventDefault();
+    generateTopic();
+  }
 });
 
 // ---- Init ----
-refreshStatus();
-loadAllFiles();
-</script>
+document.addEventListener('DOMContentLoaded', function() {
+  checkStatus();
+  refreshFiles();
+});
 
+</script>
 </body>
 </html>
