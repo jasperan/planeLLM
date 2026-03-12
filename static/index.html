@@ -494,7 +494,7 @@ body::before {
   transition: var(--transition);
 }
 
-.toggle-wrap input { display: none; }
+.toggle-wrap input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .toggle-wrap input:checked + .toggle-track {
   background: var(--cyan-dim);
@@ -523,7 +523,7 @@ body::before {
   cursor: pointer;
 }
 
-.radio-option input { display: none; }
+.radio-option input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 
 .radio-pill {
   display: flex;
@@ -600,7 +600,7 @@ body::before {
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
+  transform: translateY(0) scale(0.98);
 }
 
 .btn-secondary {
@@ -1269,6 +1269,48 @@ audio::-webkit-media-controls-panel {
   opacity: 0.8;
 }
 
+/* ---- Accessibility: Focus-visible ---- */
+.nav-item:focus-visible,
+.btn:focus-visible,
+.form-input:focus-visible,
+.form-select:focus-visible,
+.form-textarea:focus-visible,
+.radio-pill:focus-visible,
+.toggle-wrap:focus-visible {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+.radio-option input:focus-visible + .radio-pill {
+  outline: 2px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+/* ---- Accessibility: Reduced Motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .splash-overlay { display: none; }
+}
+
+/* ---- Mobile Sidebar Overlay ---- */
+.sidebar-scrim {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 9, 16, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 999;
+}
+
+@media (max-width: 768px) {
+  .sidebar.open ~ .sidebar-scrim,
+  .sidebar-scrim.visible { display: block; }
+}
+
 </style>
 </head>
 
@@ -1287,9 +1329,10 @@ audio::-webkit-media-controls-panel {
 <div class="toast-container" id="toasts"></div>
 
 <!-- Mobile Sidebar Toggle -->
-<button class="mobile-toggle" onclick="document.getElementById('sidebar').classList.toggle('open')">
+<button class="mobile-toggle" aria-label="Toggle navigation menu" onclick="document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarScrim').classList.toggle('visible')">
   <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
 </button>
+<div class="sidebar-scrim" id="sidebarScrim" onclick="document.getElementById('sidebar').classList.remove('open'); this.classList.remove('visible')"></div>
 
 <!-- App Shell -->
 <div class="app">
@@ -1314,27 +1357,27 @@ audio::-webkit-media-controls-panel {
 
     <nav class="sidebar-nav">
       <div class="nav-section-label">Overview</div>
-      <a class="nav-item active" data-page="dashboard" href="#dashboard" role="button" tabindex="0" onclick="navigate('dashboard'); return false;">
+      <a class="nav-item active" data-page="dashboard" href="#dashboard" onclick="navigate('dashboard'); return false;">
         <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         Dashboard
       </a>
 
       <div class="nav-section-label">Pipeline</div>
-      <a class="nav-item" data-page="topic" href="#topic" role="button" tabindex="0" onclick="navigate('topic'); return false;">
+      <a class="nav-item" data-page="topic" href="#topic" onclick="navigate('topic'); return false;">
         <span class="step-num">1</span>
         Topic Explorer
       </a>
-      <a class="nav-item" data-page="transcript" href="#transcript" role="button" tabindex="0" onclick="navigate('transcript'); return false;">
+      <a class="nav-item" data-page="transcript" href="#transcript" onclick="navigate('transcript'); return false;">
         <span class="step-num">2</span>
         Transcript Writer
       </a>
-      <a class="nav-item" data-page="audio" href="#audio" role="button" tabindex="0" onclick="navigate('audio'); return false;">
+      <a class="nav-item" data-page="audio" href="#audio" onclick="navigate('audio'); return false;">
         <span class="step-num">3</span>
         Audio Generator
       </a>
 
       <div class="nav-section-label">Library</div>
-      <a class="nav-item" data-page="library" href="#library" role="button" tabindex="0" onclick="navigate('library'); return false;">
+      <a class="nav-item" data-page="library" href="#library" onclick="navigate('library'); return false;">
         <svg class="nav-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
         All Files
       </a>
@@ -1883,7 +1926,7 @@ const state = {
 })();
 
 // ---- Navigation ----
-function navigate(page) {
+async function navigate(page) {
   state.currentPage = page;
 
   // Update sidebar
@@ -1906,10 +1949,12 @@ function navigate(page) {
 
   // Close mobile sidebar
   document.getElementById('sidebar').classList.remove('open');
+  const scrim = document.getElementById('sidebarScrim');
+  if (scrim) scrim.classList.remove('visible');
 
   // Refresh file lists when navigating to relevant pages
   if (['transcript', 'audio', 'library', 'dashboard'].includes(page)) {
-    refreshFiles();
+    await refreshFiles();
   }
 }
 
@@ -1941,7 +1986,7 @@ function showToast(message, type = 'info') {
     info: '<svg width="16" height="16" fill="none" stroke="var(--cyan)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
   };
 
-  toast.innerHTML = `${icons[type] || icons.info}<span>${message}</span>`;
+  toast.innerHTML = `${icons[type] || icons.info}<span>${escapeHTML(message)}</span>`;
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -1980,9 +2025,21 @@ function setStatusDot(id, ok) {
 }
 
 // ---- File Management ----
+let _refreshPending = null;
+let _lastFilesJSON = '';
+
 async function refreshFiles() {
+  if (_refreshPending) return _refreshPending;
+  _refreshPending = _doRefreshFiles();
+  try { await _refreshPending; } finally { _refreshPending = null; }
+}
+
+async function _doRefreshFiles() {
   try {
     const data = await api('GET', '/api/files');
+    const json = JSON.stringify(data);
+    if (json === _lastFilesJSON) return; // skip DOM rebuild if unchanged
+    _lastFilesJSON = json;
     state.files = data;
     updateFileSelectors();
     updateDashboardStats();
@@ -1993,41 +2050,23 @@ async function refreshFiles() {
   }
 }
 
-function updateFileSelectors() {
-  // Content file selector (transcript page)
-  const contentSelect = document.getElementById('contentFileSelect');
-  const currentContent = contentSelect.value;
-  contentSelect.innerHTML = '<option value="">Select a content file...</option>';
-  state.files.content.forEach(f => {
+function populateSelect(selectId, files, placeholder, autoSelect) {
+  const el = document.getElementById(selectId);
+  const prev = el.value;
+  el.innerHTML = `<option value="">${escapeHTML(placeholder)}</option>`;
+  files.forEach(f => {
     const opt = document.createElement('option');
     opt.value = f;
     opt.textContent = f;
-    contentSelect.appendChild(opt);
+    el.appendChild(opt);
   });
-  if (currentContent && state.files.content.includes(currentContent)) {
-    contentSelect.value = currentContent;
-  }
-  // Auto-select if we just generated content
-  if (state.lastGeneratedContent && state.files.content.includes(state.lastGeneratedContent)) {
-    contentSelect.value = state.lastGeneratedContent;
-  }
+  if (prev && files.includes(prev)) el.value = prev;
+  if (autoSelect && files.includes(autoSelect)) el.value = autoSelect;
+}
 
-  // Transcript file selector (audio page)
-  const transcriptSelect = document.getElementById('transcriptFileSelect');
-  const currentTranscript = transcriptSelect.value;
-  transcriptSelect.innerHTML = '<option value="">Select a transcript file...</option>';
-  state.files.transcripts.forEach(f => {
-    const opt = document.createElement('option');
-    opt.value = f;
-    opt.textContent = f;
-    transcriptSelect.appendChild(opt);
-  });
-  if (currentTranscript && state.files.transcripts.includes(currentTranscript)) {
-    transcriptSelect.value = currentTranscript;
-  }
-  if (state.lastGeneratedTranscript && state.files.transcripts.includes(state.lastGeneratedTranscript)) {
-    transcriptSelect.value = state.lastGeneratedTranscript;
-  }
+function updateFileSelectors() {
+  populateSelect('contentFileSelect', state.files.content, 'Select a content file...', state.lastGeneratedContent);
+  populateSelect('transcriptFileSelect', state.files.transcripts, 'Select a transcript file...', state.lastGeneratedTranscript);
 }
 
 function updateDashboardStats() {
@@ -2054,7 +2093,7 @@ function updateRecentFiles() {
   container.innerHTML = allFiles.map(f => `
     <li class="file-item">
       ${getFileIconSVG(f.type)}
-      <span class="file-name">${f.name}</span>
+      <span class="file-name">${escapeHTML(f.name)}</span>
       <span class="file-badge ${f.type}">${f.type}</span>
     </li>
   `).join('');
@@ -2098,11 +2137,12 @@ function updateLibrary() {
 
   container.innerHTML = files.map(f => {
     const isAudio = f.type === 'audio';
-    const playBtn = isAudio ? `<button class="btn btn-ghost" onclick="playAudioFile('${f.name}')" style="padding:4px 8px;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>` : '';
+    const safeName = escapeHTML(f.name);
+    const playBtn = isAudio ? `<button class="btn btn-ghost" onclick="playAudioFile(this.dataset.file)" data-file="${safeName}" style="padding:4px 8px;"><svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></button>` : '';
     return `
       <li class="file-item">
         ${getFileIconSVG(f.type)}
-        <span class="file-name">${f.name}</span>
+        <span class="file-name">${safeName}</span>
         <span class="file-badge ${f.type}">${f.type}</span>
         ${playBtn}
       </li>
@@ -2128,6 +2168,7 @@ async function generateTopic() {
   const results = document.getElementById('topicResults');
   const nextStep = document.getElementById('topicNextStep');
 
+  const btnOriginal = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Generating...';
   progress.classList.add('visible');
@@ -2141,7 +2182,6 @@ async function generateTopic() {
 
     if (!data.success) throw new Error(data.message);
 
-    // Show results
     const questionsEl = document.getElementById('topicQuestions');
     const contentEl = document.getElementById('topicContent');
 
@@ -2151,7 +2191,6 @@ async function generateTopic() {
       questionsEl.textContent = 'No questions generated.';
     }
 
-    // Fetch the content file to show full content
     try {
       const contentRes = await fetch(`/resources/${data.content_file}`);
       const contentText = await contentRes.text();
@@ -2170,7 +2209,7 @@ async function generateTopic() {
     showToast(`Error: ${e.message}`, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Generate Content';
+    btn.innerHTML = btnOriginal;
     progress.classList.remove('visible');
   }
 }
@@ -2188,6 +2227,7 @@ async function createTranscript() {
   const progress = document.getElementById('transcriptProgress');
   const result = document.getElementById('transcriptResult');
 
+  const btnOriginal = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Creating transcript...';
   progress.classList.add('visible');
@@ -2208,7 +2248,6 @@ async function createTranscript() {
     state.lastGeneratedTranscript = data.transcript_file;
     document.getElementById('transcriptFilename').textContent = data.transcript_file;
 
-    // Fetch full transcript for preview
     try {
       const transRes = await fetch(`/resources/${data.transcript_file}`);
       const transText = await transRes.text();
@@ -2224,7 +2263,7 @@ async function createTranscript() {
     showToast(`Error: ${e.message}`, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg> Create Transcript';
+    btn.innerHTML = btnOriginal;
     progress.classList.remove('visible');
   }
 }
@@ -2242,16 +2281,14 @@ function renderTranscriptPreview(text) {
       let cls = 'expert';
       if (/student|2/i.test(speaker)) cls = 'student';
       if (/host|3/i.test(speaker)) cls = 'host';
-      return `<div class="transcript-line"><div class="transcript-speaker ${cls}">${speaker}</div><div class="transcript-text">${escapeHTML(text)}</div></div>`;
+      return `<div class="transcript-line"><div class="transcript-speaker ${cls}">${escapeHTML(speaker)}</div><div class="transcript-text">${escapeHTML(text)}</div></div>`;
     }
     return `<div class="transcript-line"><div class="transcript-text">${escapeHTML(line)}</div></div>`;
   }).join('');
 }
 
 function escapeHTML(str) {
-  const div = document.createElement('div');
-  div.textContent = str;
-  return div.innerHTML;
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 // ---- Pipeline: Audio Generator ----
@@ -2266,6 +2303,7 @@ async function generateAudio() {
   const btn = document.getElementById('btnGenerateAudio');
   const progress = document.getElementById('audioProgress');
 
+  const btnOriginal = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Generating audio...';
   progress.classList.add('visible');
@@ -2284,46 +2322,35 @@ async function generateAudio() {
 
     if (!data.success) throw new Error(data.message);
 
-    // Show audio player
-    const playerCard = document.getElementById('audioPlayerCard');
-    const audioEl = document.getElementById('audioElement');
-    const waveIcon = document.getElementById('audioWaveIcon');
-
-    playerCard.classList.add('visible');
-    document.getElementById('audioTitle').textContent = data.audio_file;
-    audioEl.src = `/resources/${data.audio_file}`;
-
-    audioEl.onplay = () => waveIcon.classList.add('playing');
-    audioEl.onpause = () => waveIcon.classList.remove('playing');
-    audioEl.onended = () => waveIcon.classList.remove('playing');
-
+    showAudioPlayer(data.audio_file);
     showToast('Audio generated successfully!', 'success');
 
   } catch (e) {
     showToast(`Error: ${e.message}`, 'error');
   } finally {
     btn.disabled = false;
-    btn.innerHTML = '<svg class="btn-icon" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg> Generate Audio';
+    btn.innerHTML = btnOriginal;
     progress.classList.remove('visible');
   }
 }
 
-function playAudioFile(filename) {
-  navigate('audio');
-  setTimeout(() => {
-    const playerCard = document.getElementById('audioPlayerCard');
-    const audioEl = document.getElementById('audioElement');
-    const waveIcon = document.getElementById('audioWaveIcon');
+function showAudioPlayer(filename, autoplay = false) {
+  const playerCard = document.getElementById('audioPlayerCard');
+  const audioEl = document.getElementById('audioElement');
+  const waveIcon = document.getElementById('audioWaveIcon');
 
-    playerCard.classList.add('visible');
-    document.getElementById('audioTitle').textContent = filename;
-    audioEl.src = `/resources/${filename}`;
-    audioEl.play();
+  playerCard.classList.add('visible');
+  document.getElementById('audioTitle').textContent = filename;
+  audioEl.src = `/resources/${filename}`;
+  audioEl.onplay = () => waveIcon.classList.add('playing');
+  audioEl.onpause = () => waveIcon.classList.remove('playing');
+  audioEl.onended = () => waveIcon.classList.remove('playing');
+  if (autoplay) audioEl.play();
+}
 
-    audioEl.onplay = () => waveIcon.classList.add('playing');
-    audioEl.onpause = () => waveIcon.classList.remove('playing');
-    audioEl.onended = () => waveIcon.classList.remove('playing');
-  }, 100);
+async function playAudioFile(filename) {
+  await navigate('audio');
+  showAudioPlayer(filename, true);
 }
 
 // ---- TTS Model Options Toggle ----
