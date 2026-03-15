@@ -10,13 +10,12 @@ import traceback
 from pathlib import Path
 from typing import Optional
 
+import api_workflow
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-
-from plane_llm_utils import safe_resource_path, timestamp_slug
 
 
 RESOURCES = Path("./resources").resolve()
@@ -86,9 +85,15 @@ def _get_writer():
     return _writer
 
 
+def _get_tts_generator_class():
+    from tts_generator import TTSGenerator
+
+    return TTSGenerator
+
+
 def _resource_file(file_name: str) -> Path:
     try:
-        return safe_resource_path(RESOURCES, file_name)
+        return api_workflow.resource_file(RESOURCES, file_name)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -160,22 +165,16 @@ def generate_topic(req: TopicRequest):
 
 @app.post("/api/transcript/create")
 def create_transcript(req: TranscriptRequest):
-    content_path = _resource_file(req.content_file)
-    if not content_path.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {req.content_file}")
-
     try:
-        writer = _get_writer()
-        content = content_path.read_text(encoding="utf-8")
-        transcript = writer.create_detailed_podcast_transcript(content) if req.detailed else writer.create_podcast_transcript(content)
-        transcript_file = f"podcast_transcript_{timestamp_slug()}.txt"
-        _resource_file(transcript_file).write_text(transcript, encoding="utf-8")
-        return {
-            "success": True,
-            "message": "Transcript created successfully",
-            "transcript_file": transcript_file,
-            "transcript_preview": transcript[:500],
-        }
+        return api_workflow.create_transcript_response(
+            resources=RESOURCES,
+            request=req,
+            get_writer=_get_writer,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"File not found: {exc.args[0]}") from exc
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - thin exception wrapper
@@ -190,22 +189,16 @@ def create_transcript(req: TranscriptRequest):
 
 @app.post("/api/audio/generate")
 def generate_audio(req: AudioRequest):
-    transcript_path = _resource_file(req.transcript_file)
-    if not transcript_path.exists():
-        raise HTTPException(status_code=404, detail=f"File not found: {req.transcript_file}")
-
     try:
-        from tts_generator import TTSGenerator
-
-        transcript = transcript_path.read_text(encoding="utf-8")
-        output_path = str(_resource_file(f"podcast_{timestamp_slug()}.mp3"))
-        tts = TTSGenerator(model_type=req.tts_model, fish_reference_id=req.fish_reference or None)
-        result = tts.generate_podcast(transcript, output_path=output_path)
-        return {
-            "success": True,
-            "message": "Audio generated successfully",
-            "audio_file": Path(result).name,
-        }
+        return api_workflow.generate_audio_response(
+            resources=RESOURCES,
+            request=req,
+            get_tts_generator_class=_get_tts_generator_class,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"File not found: {exc.args[0]}") from exc
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - thin exception wrapper

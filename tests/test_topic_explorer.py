@@ -6,6 +6,25 @@ from unittest.mock import MagicMock, patch
 from topic_explorer import TopicExplorer
 
 
+class _ImmediateFuture:
+    def __init__(self, value):
+        self._value = value
+
+    def result(self):
+        return self._value
+
+
+class _ImmediateExecutor:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+    def submit(self, fn, *args, **kwargs):
+        return _ImmediateFuture(fn(*args, **kwargs))
+
+
 class TestTopicExplorer(unittest.TestCase):
     def setUp(self):
         self.mock_config = {
@@ -27,20 +46,31 @@ class TestTopicExplorer(unittest.TestCase):
                 ["Question 4?"],
             ],
         ) as batch_mock:
-            first = explorer.generate_questions("Test Topic")
-            second = explorer.generate_questions("Test Topic")
+            with patch("topic_explorer.ThreadPoolExecutor", return_value=_ImmediateExecutor()):
+                with patch("topic_explorer.as_completed", side_effect=lambda futures: list(futures)):
+                    first = explorer.generate_questions("Test Topic")
+                    second = explorer.generate_questions("Test Topic")
 
         self.assertEqual(first, ["Question 1?", "Question 2?", "Question 3?", "Question 4?"])
         self.assertEqual(second, first)
         self.assertEqual(batch_mock.call_count, 3)
 
-    def test_explore_question_raises_after_retry_exhaustion(self):
+    def test_explore_question_returns_llm_text(self):
+        explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
+
+        with patch.object(explorer, "_call_llm", return_value="Detailed answer") as call_mock:
+            answer = explorer.explore_question("Test question?")
+
+        self.assertEqual(answer, "Detailed answer")
+        call_mock.assert_called_once()
+
+    def test_make_llm_call_raises_after_retry_exhaustion(self):
         self.mock_client.chat.side_effect = Exception("API Error")
         explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
 
         with patch("topic_explorer.time.sleep"):
             with self.assertRaises(RuntimeError):
-                explorer.explore_question("Test question?")
+                explorer._make_llm_call("Test prompt")
 
 
 if __name__ == "__main__":

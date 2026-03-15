@@ -1,4 +1,3 @@
-- Split `gradio_app` into a tiny launcher plus a heavier builder module so the smoke path can import less code before constructing the interface.
-- Measure whether a dedicated `build_interface()` function with fewer repeated widget definitions trims Gradio construction time without weakening coverage.
-- If the verification target ever changes, re-baseline an in-process FastAPI smoke with `TestClient` instead of a Uvicorn bind check. Don't mix that with the current metric.
-- Add a local, credential-free `TopicExplorer.generate_topic_bundle()` benchmark so future autoresearch can target end-user latency instead of just verification speed.
+- Revisit `tests/test_topic_explorer.py` one more time only if the retry-exhaustion assertion can be made cheaper without losing confidence in the retry-path coverage.
+- Re-examine `tts_generator.py` import structure for the pure test path, but only with hard local evidence before spending another experiment on it.
+- If pytest runtime bottoms out here, pivot the next session to a deterministic local `TopicExplorer.generate_topic_bundle()` benchmark instead of squeezing more out of collection-time micro-optimizations.

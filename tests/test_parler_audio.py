@@ -10,9 +10,6 @@ These tests are ONLY for Parler TTS and will fail if Parler TTS is not available
 """
 
 import importlib.util
-import os
-import shutil
-import tempfile
 import unittest
 
 
@@ -27,6 +24,10 @@ def _parler_available() -> bool:
 
 if not _parler_available():
     raise unittest.SkipTest("Parler TTS is not available")
+
+import os
+import shutil
+import tempfile
 
 from pydub import AudioSegment
 from tts_generator import TTSGenerator
@@ -186,5 +187,6 @@ class TestParlerAudioGeneration(unittest.TestCase):
         except Exception as e:
             self.fail(f"Parler voice selection test failed with error: {str(e)}")
 
+
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()

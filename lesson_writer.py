@@ -8,8 +8,6 @@ import os
 import re
 import time
 
-import oci
-
 from plane_llm_utils import build_genai_client, extract_chat_text, load_yaml_config, timestamp_slug
 
 
@@ -113,6 +111,8 @@ Here's the educational content to transform:
 """
 
     def _call_llm(self, prompt: str) -> str:
+        import oci
+
         start_time = time.time()
 
         content = oci.generative_ai_inference.models.TextContent()

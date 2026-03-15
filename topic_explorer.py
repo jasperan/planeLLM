@@ -10,8 +10,6 @@ import os
 import re
 import time
 
-import oci
-
 from plane_llm_utils import build_genai_client, extract_chat_text, load_yaml_config, timestamp_slug
 
 
@@ -134,6 +132,8 @@ class TopicExplorer:
         return self._make_llm_call(prompt)
 
     def _make_llm_call(self, prompt: str) -> str:
+        import oci
+
         content = oci.generative_ai_inference.models.TextContent()
         content.text = prompt
 
