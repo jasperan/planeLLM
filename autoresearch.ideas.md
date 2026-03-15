@@ -1,3 +1,3 @@
-- If the next session wants meaningful performance work instead of more pytest micro-optimizations, pivot to a deterministic local `TopicExplorer.generate_topic_bundle()` benchmark.
-- Consider a repo-local `sitecustomize.py` that disables unrelated external pytest plugin autoload for humans too, but treat that as developer-experience work rather than as a primary-metric optimization because the benchmark already runs in a clean plugin environment.
-- Revisit `tts_generator.py` import structure only if new hard evidence shows a measurable collection-time cost under the current benchmark.
+- Pivot the next autoresearch session to a deterministic local `TopicExplorer.generate_topic_bundle()` benchmark. The direct-pytest command is now so fast that more wins are likely to be tiny and noisy.
+- If a future session revisits test-runner ergonomics, explore making the repo-local pytest wrapper visible in contributor docs, but keep that separate from performance benchmarking.
+- Revisit `tts_generator.py` import structure only if fresh measurement shows a meaningful cost under a new, more end-user-facing workload.

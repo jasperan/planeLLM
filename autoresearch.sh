@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
 
-PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python - <<'PY'
+python - <<'PY'
 import subprocess
 import sys
 import time
