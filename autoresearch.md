@@ -53,8 +53,10 @@ Reduce the wall-clock time for a reproducible whole-project verification loop wh
   - Quieted library-level progress printing in `TopicExplorer` and `PodcastWriter`
   - Stubbed the retry sleep in the `TopicExplorer` exhaustion test so pytest measures logic instead of a real backoff wait
   - Parallelized independent verification jobs in `autoresearch.sh` so pytest, CLI help, Gradio smoke, API smoke, and Go build overlap
+  - Short-circuited the optional Parler test module before heavy imports when Parler is unavailable, which keeps skipped-test overhead tiny
 - Dead end so far:
   - Lazily loading `pydub.AudioSegment` and `tqdm` did not help the whole devloop metric
 - Current bottlenecks:
   - Gradio import time dominates the parallel smoke phase
   - The benchmark is now much more scheduling-sensitive because the remaining jobs overlap tightly
+  - Further wins will likely require either a lighter Gradio smoke path or a different optimization target

@@ -9,36 +9,31 @@ TTS integration is working correctly.
 These tests are ONLY for Parler TTS and will fail if Parler TTS is not available.
 """
 
+import importlib.util
 import os
-import unittest
-from unittest.mock import patch, MagicMock
-import tempfile
 import shutil
-from pydub import AudioSegment
-import sys
+import tempfile
+import unittest
 
-# Import the TTSGenerator class
+
+def _parler_available() -> bool:
+    if importlib.util.find_spec("parler_tts") is not None:
+        return True
+    try:
+        return importlib.util.find_spec("parler.tts") is not None
+    except ModuleNotFoundError:
+        return False
+
+
+if not _parler_available():
+    raise unittest.SkipTest("Parler TTS is not available")
+
+from pydub import AudioSegment
 from tts_generator import TTSGenerator
+
 
 class TestParlerAudioGeneration(unittest.TestCase):
     """Test cases for Parler audio generation."""
-    
-    @classmethod
-    def setUpClass(cls):
-        """Check if Parler TTS is available before running any tests."""
-        try:
-            # Try to import Parler TTS
-            try:
-                from parler_tts import ParlerTTSForConditionalGeneration
-            except ImportError:
-                from parler.tts import ParlerTTSForConditionalGeneration
-                
-            print("Parler TTS is available. Tests will proceed.")
-        except ImportError:
-            print("ERROR: Parler TTS is not available. Tests cannot proceed.")
-            print("Please install Parler TTS with: pip install git+https://github.com/huggingface/parler-tts.git")
-            # Skip all tests if Parler is not available
-            raise unittest.SkipTest("Parler TTS is not available")
     
     def setUp(self):
         """Set up test fixtures."""
