@@ -15,19 +15,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 root = os.getcwd()
 python = sys.executable
 start = time.perf_counter()
-
 pytest_env = dict(os.environ)
 pytest_env["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
-subprocess.run([python, "-m", "pytest", "tests", "-q"], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=pytest_env)
 
 
-def run_command(command, *, cwd=root):
-    subprocess.run(command, check=True, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def run_command(command, *, cwd=root, env=None):
+    subprocess.run(command, check=True, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
 
 
 def run_api_smoke():
     api_proc = subprocess.Popen(
         [python, "api_server.py"],
+        cwd=root,
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
@@ -52,6 +51,7 @@ def run_api_smoke():
 
 
 jobs = [
+    lambda: run_command([python, "-m", "pytest", "tests", "-q"], env=pytest_env),
     lambda: run_command([python, "podcast_controller.py", "--help"]),
     lambda: run_command([python, "-c", "import gradio_app; app = gradio_app.create_interface(); print(type(app).__name__)"]),
     lambda: run_command(["go", "build", "./..."], cwd=os.path.join(root, "planellm-tui")),
