@@ -49,5 +49,8 @@ Reduce the wall-clock time of `python -m pytest tests -q` for `/home/ubuntu/git/
   - Lazily loading more of `tts_generator.py` did not show a consistent win.
   - Removing `pytest.ini` was noisy and not consistently better.
 - Current bottlenecks:
+  - The remaining runtime is now mostly ordinary pytest process startup and collection overhead.
+  - Further wins on this target are likely to be small unless the benchmark target changes.
+bottlenecks:
   - `tests/test_topic_explorer.py` is still the slowest single file, mostly because the retry-exhaustion path still constructs real OCI request objects.
   - The remaining runtime is now mostly ordinary pytest process startup plus a handful of import-heavy files.

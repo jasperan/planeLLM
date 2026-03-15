@@ -1,5 +1,7 @@
 """Unit tests for TopicExplorer module."""
 
+import sys
+import types
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -23,6 +25,26 @@ class _ImmediateExecutor:
 
     def submit(self, fn, *args, **kwargs):
         return _ImmediateFuture(fn(*args, **kwargs))
+
+
+def _fake_oci_module():
+    class _Model:
+        API_FORMAT_GENERIC = "generic"
+
+        def __init__(self, *args, **kwargs):
+            self.__dict__.update(kwargs)
+
+    models = types.SimpleNamespace(
+        TextContent=_Model,
+        Message=_Model,
+        GenericChatRequest=_Model,
+        BaseChatRequest=_Model,
+        ChatDetails=_Model,
+        OnDemandServingMode=_Model,
+    )
+    return types.SimpleNamespace(
+        generative_ai_inference=types.SimpleNamespace(models=models)
+    )
 
 
 class TestTopicExplorer(unittest.TestCase):
@@ -68,9 +90,10 @@ class TestTopicExplorer(unittest.TestCase):
         self.mock_client.chat.side_effect = Exception("API Error")
         explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
 
-        with patch("topic_explorer.time.sleep"):
-            with self.assertRaises(RuntimeError):
-                explorer._make_llm_call("Test prompt")
+        with patch.dict(sys.modules, {"oci": _fake_oci_module()}):
+            with patch("topic_explorer.time.sleep"):
+                with self.assertRaises(RuntimeError):
+                    explorer._make_llm_call("Test prompt")
 
 
 if __name__ == "__main__":

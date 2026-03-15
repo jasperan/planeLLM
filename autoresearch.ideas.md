@@ -1,3 +1,3 @@
-- Revisit `tests/test_topic_explorer.py` one more time only if the retry-exhaustion assertion can be made cheaper without losing confidence in the retry-path coverage.
-- Re-examine `tts_generator.py` import structure for the pure test path, but only with hard local evidence before spending another experiment on it.
-- If pytest runtime bottoms out here, pivot the next session to a deterministic local `TopicExplorer.generate_topic_bundle()` benchmark instead of squeezing more out of collection-time micro-optimizations.
+- If the next session wants meaningful performance work instead of more pytest micro-optimizations, pivot to a deterministic local `TopicExplorer.generate_topic_bundle()` benchmark.
+- Consider a repo-local `sitecustomize.py` that disables unrelated external pytest plugin autoload for humans too, but treat that as developer-experience work rather than as a primary-metric optimization because the benchmark already runs in a clean plugin environment.
+- Revisit `tts_generator.py` import structure only if new hard evidence shows a measurable collection-time cost under the current benchmark.
