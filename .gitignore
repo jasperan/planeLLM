@@ -186,3 +186,12 @@ findings.md
 progress.md
 dogfood-output/
 .playwright-mcp/
+
+# Local agent artifacts
+.agents/
+.claude/
+.crush/
+.openhands/
+.serena/
+.pi/
+content/

@@ -1,0 +1,4 @@
+- Split the Gradio UI shell from the launcher more aggressively so the devloop smoke path spends less time importing Gradio itself.
+- Try an in-process FastAPI `TestClient` health smoke instead of launching Uvicorn, but only if we intentionally re-baseline around app behavior rather than network bind time.
+- Evaluate a dedicated fast core-test runner for the devloop if optional integration tests stay skipped under the default suite.
+- Add a local, credential-free `TopicExplorer.generate_topic_bundle()` benchmark so future autoresearch can target end-user latency instead of just verification speed.

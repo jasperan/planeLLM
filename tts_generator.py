@@ -24,8 +24,8 @@ warnings.filterwarnings('ignore', message='.*You have modified the pretrained mo
 warnings.filterwarnings('ignore', category=UserWarning)
 warnings.filterwarnings('ignore', category=FutureWarning)
 
+import importlib
 import os
-import torch
 # Suppress Flash Attention 2 warning
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = "true"
@@ -36,7 +36,6 @@ os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import time
-import yaml
 import re
 import shutil
 from pathlib import Path
@@ -44,22 +43,51 @@ from typing import Dict, List, Optional, Union, Tuple
 from pydub import AudioSegment
 import tempfile
 import tqdm
-import numpy as np
+
+from plane_llm_utils import load_yaml_config
 
 # Disable logging from transformers
 import logging
 logging.getLogger("transformers").setLevel(logging.ERROR)
 logging.getLogger("transformers.generation_utils").setLevel(logging.ERROR)
 
+
+class _LazyModule:
+    def __init__(self, module_name: str):
+        self.module_name = module_name
+        self._module = None
+
+    def _load(self):
+        if self._module is None:
+            self._module = importlib.import_module(self.module_name)
+        return self._module
+
+    def __getattr__(self, item):
+        return getattr(self._load(), item)
+
+
+torch = _LazyModule("torch")
+np = _LazyModule("numpy")
+
+
 class TTSGenerator:
     """Class for generating podcast audio from transcripts."""
     
-    def __init__(self, model_type: str = "parler", config_file: str = 'config.yaml') -> None:
+    def __init__(
+        self,
+        model_type: str = "fish",
+        config_file: Optional[str] = None,
+        *,
+        initialize_model: bool = True,
+        fish_reference_id: Optional[str] = None,
+    ) -> None:
         """Initialize the TTS generator.
         
         Args:
-            model_type: Type of TTS model to use ('bark', 'parler', or 'coqui')
-            config_file: Path to configuration file
+            model_type: Type of TTS model to use ('bark', 'parler', 'coqui', or 'fish')
+            config_file: Optional path to configuration file
+            initialize_model: Skip heavy model initialization when False (useful for tests)
+            fish_reference_id: Optional Fish Speech reference to keep on the instance only
             
         Raises:
             ValueError: If model_type is not supported
@@ -69,27 +97,33 @@ class TTSGenerator:
         if self.model_type not in ["bark", "parler", "coqui", "fish"]:
             raise ValueError("Unsupported TTS model type. Choose 'bark', 'parler', 'coqui', or 'fish'")
         
-        # Check for FFmpeg dependencies
+        self.fish_reference_id = fish_reference_id or os.environ.get("FISH_REFERENCE_ID", "")
         self.ffmpeg_available = self._check_ffmpeg()
         if not self.ffmpeg_available:
             print("WARNING: FFmpeg/ffprobe not found. Audio export may fail.")
             print("Please install FFmpeg: https://ffmpeg.org/download.html")
         
-        # Load configuration
-        with open(config_file, 'r', encoding='utf-8') as file:
-            self.config = yaml.safe_load(file)
+        self.config = load_yaml_config(config_file) if config_file and Path(config_file).expanduser().exists() else {}
+        self.sample_rate = 24000
+        self.parler_available = False
+        self.coqui_available = False
+        self.fish_available = False
+        self.fish_speaker_map = {
+            "Speaker 1": self.fish_reference_id,
+            "Speaker 2": self.fish_reference_id,
+            "Speaker 3": self.fish_reference_id,
+        }
         
-        # Initialize model-specific components
-        if self.model_type == "bark":
-            self._init_bark()
-        elif self.model_type == "parler":
-            self._init_parler()
-        elif self.model_type == "fish":
-            self._init_fish()
-        else:  # coqui
-            self._init_coqui()
+        if initialize_model:
+            if self.model_type == "bark":
+                self._init_bark()
+            elif self.model_type == "parler":
+                self._init_parler()
+            elif self.model_type == "fish":
+                self._init_fish()
+            else:  # coqui
+                self._init_coqui()
         
-        # Initialize execution time tracking
         self.execution_times = {
             'start_time': 0,
             'total_time': 0,
@@ -211,7 +245,7 @@ class TTSGenerator:
 
             api_key = os.environ.get("FISH_API_KEY", "")
             base_url = os.environ.get("FISH_BASE_URL", "https://api.fish.audio")
-            self.fish_reference_id = os.environ.get("FISH_REFERENCE_ID", "")
+            self.fish_reference_id = self.fish_reference_id or os.environ.get("FISH_REFERENCE_ID", "")
 
             kwargs = {"api_key": api_key}
             if base_url != "https://api.fish.audio":

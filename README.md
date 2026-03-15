@@ -55,14 +55,20 @@ The solution has the following features:
    oci setup config
    ```
 
-2. Clone the repository and install dependencies (including `ffmpeg`):
+2. Clone the repository and install the core dependencies (including `ffmpeg`):
 
     ```bash
-    git clone https://github.com/oracle-devrel/devrel-labs.git
+    git clone https://github.com/jasperan/planeLLM.git
     cd planeLLM
-    pip install -r requirements.txt
+    python -m pip install -r requirements.txt
     sudo apt-get install ffmpeg
     # if you are on Windows or another OS different than Ubuntu, install ffmpeg from https://ffmpeg.org/download.html
+    ```
+
+    If you want fully local Bark, Parler, or Coqui backends, install the optional local TTS stack too:
+
+    ```bash
+    python -m pip install -r requirements-tts-local.txt
     ```
 
 3. In `config.yaml`, you will need to complete these variables:
@@ -225,16 +231,16 @@ The project includes comprehensive unit tests for all modules. To run the tests:
 
 ```bash
 # Install test dependencies
-pip install pytest pytest-cov
+python -m pip install pytest pytest-cov
 
 # Run all tests with coverage report
-pytest tests/ --cov=./ --cov-report=term-missing
+python -m pytest tests/ --cov=./ --cov-report=term-missing
 
 # Run tests for a specific module
-pytest tests/test_topic_explorer.py
-pytest tests/test_lesson_writer.py
-pytest tests/test_tts.py
-pytest tests/test_podcast_controller.py
+python -m pytest tests/test_topic_explorer.py
+python -m pytest tests/test_lesson_writer.py
+python -m pytest tests/test_tts.py
+python -m pytest tests/test_podcast_controller.py
 ```
 
 The tests cover:

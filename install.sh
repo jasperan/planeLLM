@@ -17,7 +17,6 @@ PROJECT="planeLLM"
 BRANCH="main"
 INSTALL_DIR="${PROJECT_DIR:-$(pwd)/$PROJECT}"
 
-# ── Colors ──────────────────────────────────────────────────
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -61,7 +60,7 @@ check_prereqs() {
     PYTHON=""
     for cmd in python3 python; do
         if command_exists "$cmd"; then
-            ver=$("$cmd" -c 'import sys; v=sys.version_info; print(f"{v.major}.{v.minor}")' 2>/dev/null) || continue
+            ver=$($cmd -c 'import sys; v=sys.version_info; print(f"{v.major}.{v.minor}")' 2>/dev/null) || continue
             major=${ver%%.*}
             minor=${ver##*.}
             if [ "$major" -gt 3 ] || { [ "$major" -eq 3 ] && [ "$minor" -ge 8 ]; }; then
@@ -82,21 +81,13 @@ install_deps() {
     else
         info "Using existing virtual environment..."
     fi
-    # shellcheck disable=SC1091
-    source .venv/bin/activate
 
-    info "Installing dependencies..."
-    pip install --upgrade pip -q
-    pip install -r requirements.txt -q
-    success "Dependencies installed"
-}
+    VENV_PYTHON="$INSTALL_DIR/.venv/bin/python"
 
-main() {
-    print_banner
-    check_prereqs
-    clone_repo
-    install_deps
-    print_done
+    info "Installing core dependencies..."
+    "$VENV_PYTHON" -m pip install --upgrade pip -q
+    "$VENV_PYTHON" -m pip install -r requirements.txt -q
+    success "Core dependencies installed"
 }
 
 print_done() {
@@ -107,7 +98,16 @@ print_done() {
     echo ""
     echo -e "  ${BOLD}Location:${NC}  $INSTALL_DIR"
     echo -e "  ${BOLD}Activate:${NC}  source $INSTALL_DIR/.venv/bin/activate"
+    echo -e "  ${BOLD}Optional local TTS:${NC}  python -m pip install -r requirements-tts-local.txt"
     echo ""
+}
+
+main() {
+    print_banner
+    check_prereqs
+    clone_repo
+    install_deps
+    print_done
 }
 
 main "$@"

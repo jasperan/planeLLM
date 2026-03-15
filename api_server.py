@@ -1,9 +1,11 @@
 #!/usr/bin/env python
-"""FastAPI server for planeLLM — exposes the podcast pipeline over HTTP."""
+"""FastAPI server for planeLLM, exposing the podcast pipeline over HTTP."""
 
+from __future__ import annotations
+
+import importlib.util
 import os
 import shutil
-import time
 import traceback
 from pathlib import Path
 from typing import Optional
@@ -14,23 +16,37 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-os.makedirs("./resources", exist_ok=True)
+from plane_llm_utils import safe_resource_path, timestamp_slug
+
+
+RESOURCES = Path("./resources").resolve()
+RESOURCES.mkdir(exist_ok=True)
+STATIC_DIR = Path("./static")
+OCI_AVAILABLE = importlib.util.find_spec("oci") is not None
+FISH_AUDIO_AVAILABLE = importlib.util.find_spec("fishaudio") is not None
+
+
+def _allowed_origins() -> list[str]:
+    configured = os.getenv("PLANELLM_ALLOWED_ORIGINS", "").strip()
+    if configured:
+        return [origin.strip() for origin in configured.split(",") if origin.strip()]
+    return [
+        "http://127.0.0.1:7860",
+        "http://localhost:7860",
+        "http://127.0.0.1:7880",
+        "http://localhost:7880",
+    ]
+
 
 app = FastAPI(title="planeLLM API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
+    allow_origins=_allowed_origins(),
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
+app.mount("/resources", StaticFiles(directory=str(RESOURCES)), name="resources")
 
-# Serve generated audio/text files from resources/
-app.mount("/resources", StaticFiles(directory="resources"), name="resources")
-
-RESOURCES = Path("./resources")
-
-
-# ---- Request / Response Models ----
 
 class TopicRequest(BaseModel):
     topic: str
@@ -48,123 +64,94 @@ class AudioRequest(BaseModel):
     fish_emotion: Optional[str] = ""
 
 
-# ---- Lazy-initialized singletons ----
-
 _explorer = None
 _writer = None
 
 
 def _get_explorer():
-    """Return a cached TopicExplorer instance (created on first call)."""
     global _explorer
     if _explorer is None:
         from topic_explorer import TopicExplorer
+
         _explorer = TopicExplorer()
     return _explorer
 
 
 def _get_writer():
-    """Return a cached PodcastWriter instance (created on first call)."""
     global _writer
     if _writer is None:
         from lesson_writer import PodcastWriter
+
         _writer = PodcastWriter()
     return _writer
 
 
-# ---- Utility helpers ----
+def _resource_file(file_name: str) -> Path:
+    try:
+        return safe_resource_path(RESOURCES, file_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
 
 def _count_resources(suffix: str = "", keyword: str = "") -> int:
-    """Count resource files matching an optional suffix and keyword."""
     if not RESOURCES.exists():
         return 0
     return sum(
-        1 for f in RESOURCES.iterdir()
-        if f.is_file()
-        and (not suffix or f.suffix == suffix)
-        and (not keyword or keyword in f.name)
+        1
+        for resource in RESOURCES.iterdir()
+        if resource.is_file()
+        and (not suffix or resource.suffix == suffix)
+        and (not keyword or keyword in resource.name)
     )
 
 
-# ---- Endpoints ----
-
 @app.get("/api/status")
 def get_status():
-    """Service health: OCI SDK, FFmpeg, Fish Audio SDK, resource counts."""
-    oci_ok = True
-    try:
-        import oci  # noqa: F401
-    except ImportError:
-        oci_ok = False
-
-    fish_ok = True
-    try:
-        import fishaudio  # noqa: F401
-    except ImportError:
-        fish_ok = False
-
     return {
-        "oci_config": oci_ok,
+        "oci_config": OCI_AVAILABLE,
         "ffmpeg": shutil.which("ffmpeg") is not None,
-        "fish_sdk": fish_ok,
-        "resources_count": sum([
-            _count_resources(suffix=".txt", keyword="questions"),
-            _count_resources(suffix=".txt", keyword="content"),
-            _count_resources(suffix=".txt", keyword="podcast"),
-            _count_resources(suffix=".mp3"),
-        ]),
+        "fish_sdk": FISH_AUDIO_AVAILABLE,
+        "resources_count": sum(
+            [
+                _count_resources(suffix=".txt", keyword="questions"),
+                _count_resources(suffix=".txt", keyword="content"),
+                _count_resources(suffix=".txt", keyword="podcast"),
+                _count_resources(suffix=".mp3"),
+            ]
+        ),
     }
 
 
 @app.get("/api/files")
 def list_files():
-    """List available resource files by category."""
     if not RESOURCES.exists():
         return {"questions": [], "content": [], "transcripts": [], "audio": []}
 
-    all_files = sorted(f.name for f in RESOURCES.iterdir() if f.is_file())
+    all_files = sorted(resource.name for resource in RESOURCES.iterdir() if resource.is_file())
     return {
-        "questions": [f for f in all_files if f.endswith(".txt") and "questions" in f],
-        "content": [
-            f for f in all_files
-            if f.endswith(".txt") and ("content" in f or "raw_lesson" in f)
-        ],
-        "transcripts": [f for f in all_files if f.endswith(".txt") and "podcast" in f],
-        "audio": [f for f in all_files if f.endswith(".mp3")],
+        "questions": [name for name in all_files if name.endswith(".txt") and "questions" in name],
+        "content": [name for name in all_files if name.endswith(".txt") and ("content" in name or "raw_lesson" in name)],
+        "transcripts": [name for name in all_files if name.endswith(".txt") and "podcast" in name],
+        "audio": [name for name in all_files if name.endswith(".mp3")],
     }
 
 
 @app.post("/api/topic/generate")
 def generate_topic(req: TopicRequest):
-    """Stage 1: Topic exploration — generate questions and content."""
     try:
-        explorer = _get_explorer()
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-
-        questions = explorer.generate_questions(req.topic)
-
-        questions_file = f"questions_{timestamp}.txt"
-        (RESOURCES / questions_file).write_text("\n".join(questions), encoding="utf-8")
-
-        content = ""
-        for q in questions[:2]:
-            content += f"# {q}\n\n{explorer.explore_question(q)}\n\n"
-
-        content_file = f"content_{timestamp}.txt"
-        (RESOURCES / content_file).write_text(content, encoding="utf-8")
-
+        bundle = _get_explorer().generate_topic_bundle(req.topic)
         return {
             "success": True,
-            "message": f"Generated {len(questions)} questions and content for '{req.topic}'",
-            "questions_file": questions_file,
-            "content_file": content_file,
-            "questions": questions,
+            "message": f"Generated {len(bundle['questions'])} questions and content for '{req.topic}'",
+            "questions_file": bundle["questions_file"],
+            "content_file": bundle["content_file"],
+            "questions": bundle["questions"],
         }
-    except Exception as e:
+    except Exception as exc:  # pragma: no cover - thin exception wrapper
         traceback.print_exc()
         return {
             "success": False,
-            "message": str(e),
+            "message": str(exc),
             "questions_file": "",
             "content_file": "",
             "questions": [],
@@ -173,24 +160,16 @@ def generate_topic(req: TopicRequest):
 
 @app.post("/api/transcript/create")
 def create_transcript(req: TranscriptRequest):
-    """Stage 2: Create podcast transcript from content file."""
-    content_path = RESOURCES / req.content_file
+    content_path = _resource_file(req.content_file)
     if not content_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.content_file}")
 
     try:
         writer = _get_writer()
         content = content_path.read_text(encoding="utf-8")
-
-        if req.detailed:
-            transcript = writer.create_detailed_podcast_transcript(content)
-        else:
-            transcript = writer.create_podcast_transcript(content)
-
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        transcript_file = f"podcast_transcript_{timestamp}.txt"
-        (RESOURCES / transcript_file).write_text(transcript, encoding="utf-8")
-
+        transcript = writer.create_detailed_podcast_transcript(content) if req.detailed else writer.create_podcast_transcript(content)
+        transcript_file = f"podcast_transcript_{timestamp_slug()}.txt"
+        _resource_file(transcript_file).write_text(transcript, encoding="utf-8")
         return {
             "success": True,
             "message": "Transcript created successfully",
@@ -199,11 +178,11 @@ def create_transcript(req: TranscriptRequest):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as exc:  # pragma: no cover - thin exception wrapper
         traceback.print_exc()
         return {
             "success": False,
-            "message": str(e),
+            "message": str(exc),
             "transcript_file": "",
             "transcript_preview": "",
         }
@@ -211,33 +190,17 @@ def create_transcript(req: TranscriptRequest):
 
 @app.post("/api/audio/generate")
 def generate_audio(req: AudioRequest):
-    """Stage 3: Generate podcast audio from transcript file."""
-    transcript_path = RESOURCES / req.transcript_file
+    transcript_path = _resource_file(req.transcript_file)
     if not transcript_path.exists():
         raise HTTPException(status_code=404, detail=f"File not found: {req.transcript_file}")
 
     try:
-        # Set Fish reference env var before creating TTSGenerator
-        if req.fish_reference:
-            os.environ["FISH_REFERENCE_ID"] = req.fish_reference
-
-        # Fish handles emotion tags directly in the transcript text,
-        # so no special server-side processing is needed unless
-        # the caller explicitly provides a non-neutral emotion string.
-        if req.fish_emotion and req.fish_emotion != "(neutral)":
-            pass  # noted — no modification required
-
         from tts_generator import TTSGenerator
 
-        tts = TTSGenerator(model_type=req.tts_model)
-
         transcript = transcript_path.read_text(encoding="utf-8")
-
-        timestamp = time.strftime("%Y%m%d_%H%M%S")
-        output_path = str(RESOURCES / f"podcast_{timestamp}.mp3")
-
+        output_path = str(_resource_file(f"podcast_{timestamp_slug()}.mp3"))
+        tts = TTSGenerator(model_type=req.tts_model, fish_reference_id=req.fish_reference or None)
         result = tts.generate_podcast(transcript, output_path=output_path)
-
         return {
             "success": True,
             "message": "Audio generated successfully",
@@ -245,25 +208,20 @@ def generate_audio(req: AudioRequest):
         }
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception as exc:  # pragma: no cover - thin exception wrapper
         traceback.print_exc()
         return {
             "success": False,
-            "message": str(e),
+            "message": str(exc),
             "audio_file": "",
         }
 
 
-STATIC_DIR = Path("./static")
-
-
 @app.get("/")
 def serve_frontend():
-    """Serve the planeLLM web UI."""
     return FileResponse(STATIC_DIR / "index.html")
 
 
-# Catch-all for static assets (CSS/JS/images if added later).
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -271,4 +229,8 @@ if STATIC_DIR.exists():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=7880)
+    uvicorn.run(
+        app,
+        host=os.getenv("PLANELLM_HOST", "127.0.0.1"),
+        port=int(os.getenv("PLANELLM_PORT", "7880")),
+    )

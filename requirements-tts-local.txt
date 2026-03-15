@@ -1,0 +1,9 @@
+-r requirements.txt
+
+# Optional local TTS backends. Install these only if you want Bark, Parler,
+# or Coqui locally instead of the default Fish Speech cloud path.
+torch==2.10.0
+transformers>=4.46,<5.0
+TTS==0.22.0
+flash-attn==2.8.3
+git+https://github.com/huggingface/parler-tts.git@d108732cd57788ec86bc857d99a6cabd66663d68

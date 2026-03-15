@@ -1,57 +1,67 @@
 """Unit tests for LessonWriter module."""
 
 import unittest
-from unittest.mock import Mock, patch
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from unittest.mock import MagicMock, patch
 
 from lesson_writer import PodcastWriter
 
+
 class TestPodcastWriter(unittest.TestCase):
-    """Test cases for PodcastWriter class."""
-
     def setUp(self):
-        """Set up test fixtures."""
         self.mock_config = {
-            'compartment_id': 'test_compartment',
-            'config_profile': 'DEFAULT',
-            'model_id': 'test_model'
+            "compartment_id": "test_compartment",
+            "config_profile": "DEFAULT",
+            "model_id": "test_model",
         }
-        with patch('builtins.open', create=True) as self.mock_open:
-            self.mock_open.return_value.__enter__.return_value.read.return_value = str(self.mock_config)
-            with patch('yaml.safe_load') as self.mock_yaml:
-                self.mock_yaml.return_value = self.mock_config
-                with patch('oci.config.from_file') as self.mock_oci_config:
-                    self.writer = PodcastWriter()
+        self.mock_client = MagicMock()
 
-    def test_create_podcast_transcript(self):
-        """Test podcast transcript generation."""
-        mock_response = Mock()
-        mock_response.data = {'chat_response': {'choices': [{'message': {'content': [{'text': 'Speaker 1: Hello\nSpeaker 2: Hi'}]}}]}}
-        
-        with patch.object(self.writer.genai_client, 'chat', return_value=mock_response):
-            transcript = self.writer.create_podcast_transcript("Test content")
-            self.assertIsInstance(transcript, str)
-            self.assertTrue('Speaker 1' in transcript)
-            self.assertTrue('Speaker 2' in transcript)
+    def test_transcript_length_configures_prompt_targets(self):
+        writer = PodcastWriter(
+            config_data=self.mock_config,
+            genai_client=self.mock_client,
+            transcript_length="long",
+        )
 
-    def test_timing_statistics(self):
-        """Test execution time tracking."""
-        mock_response = Mock()
-        mock_response.data = {'chat_response': {'choices': [{'message': {'content': [{'text': 'Test response'}]}}]}}
-        
-        with patch.object(self.writer.genai_client, 'chat', return_value=mock_response):
-            self.writer._call_llm("Test prompt")
-            stats = self.writer._generate_timing_summary()
-            self.assertTrue('Execution Time Summary' in stats)
-            self.assertTrue('LLM Statistics' in stats)
+        self.assertEqual(writer.transcript_length, "long")
+        self.assertIn("18-24", writer.system_prompt)
 
-    def test_error_handling(self):
-        """Test error handling in transcript generation."""
-        with patch.object(self.writer.genai_client, 'chat', side_effect=Exception("API Error")):
-            with self.assertRaises(Exception):
-                self.writer.create_podcast_transcript("Test content")
+    def test_detailed_transcript_uses_section_local_context(self):
+        writer = PodcastWriter(
+            config_data=self.mock_config,
+            genai_client=self.mock_client,
+        )
 
-if __name__ == '__main__':
-    unittest.main() 
+        prompts = []
+
+        def fake_call(prompt):
+            prompts.append(prompt)
+            if "introduction section" in prompt:
+                return "Speaker 1: Intro"
+            if "conclusion section" in prompt:
+                return "Speaker 1: Outro"
+            return "Speaker 1: Segment"
+
+        content = """# Demo Topic
+
+## Question One?
+
+Answer one only.
+
+## Question Two?
+
+Answer two only.
+"""
+
+        with patch.object(writer, "_call_llm", side_effect=fake_call):
+            transcript = writer.create_detailed_podcast_transcript(content)
+
+        self.assertIn("Speaker 1: Intro", transcript)
+        self.assertIn("Speaker 1: Outro", transcript)
+        self.assertIn("Answer one only.", prompts[1])
+        self.assertNotIn("Answer two only.", prompts[1])
+        self.assertIn("Answer two only.", prompts[2])
+        self.assertNotIn("Answer one only.", prompts[2])
+
+
+if __name__ == "__main__":
+    unittest.main()
