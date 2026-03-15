@@ -53,13 +53,15 @@ def run_api_smoke():
 jobs = [
     lambda: run_command([python, "-m", "pytest", "tests", "-q"], env=pytest_env),
     lambda: run_command([python, "podcast_controller.py", "--help"]),
-    lambda: run_command([python, "-c", "import gradio_app; app = gradio_app.create_interface(); print(type(app).__name__)"]),
     lambda: run_command(["go", "build", "./..."], cwd=os.path.join(root, "planellm-tui")),
     run_api_smoke,
 ]
 
 with ThreadPoolExecutor(max_workers=len(jobs)) as executor:
     futures = [executor.submit(job) for job in jobs]
+    import gradio_app
+    app = gradio_app.create_interface()
+    assert app is not None
     for future in as_completed(futures):
         future.result()
 
