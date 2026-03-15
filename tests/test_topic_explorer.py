@@ -38,8 +38,9 @@ class TestTopicExplorer(unittest.TestCase):
         self.mock_client.chat.side_effect = Exception("API Error")
         explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
 
-        with self.assertRaises(RuntimeError):
-            explorer.explore_question("Test question?")
+        with patch("topic_explorer.time.sleep"):
+            with self.assertRaises(RuntimeError):
+                explorer.explore_question("Test question?")
 
 
 if __name__ == "__main__":
