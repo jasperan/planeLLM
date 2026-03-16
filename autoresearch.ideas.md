@@ -1,3 +1,4 @@
-- Pivot the next autoresearch session to a deterministic local `TopicExplorer.generate_topic_bundle()` benchmark. The direct-pytest command is now so fast that more wins are likely to be tiny and noisy.
-- If a future session revisits test-runner ergonomics, explore making the repo-local pytest wrapper visible in contributor docs, but keep that separate from performance benchmarking.
-- Revisit `tts_generator.py` import structure only if fresh measurement shows a meaningful cost under a new, more end-user-facing workload.
+- See whether `generate_questions()` can switch from `submit` + `as_completed` bookkeeping to a cheaper ordered worker path without changing behavior.
+- See whether `generate_topic_bundle()` can collect answer results without a shared dict + lock, while preserving output order.
+- Check whether `_render_bundle()` can use list accumulation + `''.join(...)` instead of repeated string concatenation.
+- If this target saturates, the next useful pivot is probably a deterministic local `PodcastWriter.create_detailed_podcast_transcript()` benchmark.

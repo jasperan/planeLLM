@@ -1,57 +1,47 @@
-# Autoresearch: planeLLM direct pytest runtime
+# Autoresearch: planeLLM deterministic TopicExplorer bundle runtime
 
 ## Objective
-Reduce the wall-clock time of the real developer command `python -m pytest tests -q` for `/home/ubuntu/git/personal/planeLLM` without weakening coverage or changing tested behavior.
+Reduce the local wall-clock cost of `TopicExplorer.generate_topic_bundle(..., save=True)` on a deterministic fake-client workload that exercises real question generation orchestration, parallel answer collection, bundle rendering, and file saving. This avoids network noise and focuses on the Python-side cost of the bundle path.
 
 ## Metrics
-- **Primary**: `pytest_s` (s, lower is better)
-- **Secondary**: `collected_tests`, `skipped_tests`, import-weight observations
+- **Primary**: `bundle_ms` (ms, lower is better)
+- **Secondary**: `loops`, `unique_questions`, `content_chars`
 
 ## How to Run
-`./autoresearch.sh` — prints `METRIC pytest_s=<seconds>`.
+`./autoresearch.sh` — prints `METRIC bundle_ms=<ms>`.
+
+The benchmark runs 200 fresh `TopicExplorer.generate_topic_bundle()` calls in temporary directories, using a deterministic fake client and `save=True`, then reports the average milliseconds per bundle.
 
 ## Files in Scope
-- `tests/`
 - `topic_explorer.py`
-- `lesson_writer.py`
-- `tts_generator.py`
-- `api_server.py`
-- `api_workflow.py`
 - `plane_llm_utils.py`
-- `pytest.ini`
-- `pytest.py`
+- `tests/test_topic_explorer.py`
+- `autoresearch.sh`
+- `autoresearch.md`
+- `autoresearch.ideas.md`
 
 ## Off Limits
 - `config.yaml`
 - `resources/`
 - `voices/`
-- Any change that removes real assertions or silently narrows the suite
-- Benchmark tricks like pre-warming imports before the timer starts
+- Anything that special-cases the fake benchmark client or bypasses real bundle rendering/saving logic
+- Benchmark-only hacks that skip work users rely on
 
 ## Constraints
-- The benchmark command is the literal user command: `python -m pytest tests -q`
-- Full checks still need to pass: tests, CLI help, Gradio build, API health, and Go build
-- Optional test modules may skip early only when the optional dependency is genuinely absent
-- Don’t turn real logic tests into mocks that no longer cover the behavior they’re supposed to protect
+- The benchmark must keep using `generate_topic_bundle(..., save=True)`
+- The fake client may only replace network I/O, not the internal bundle pipeline
+- Full project checks still need to pass: tests, CLI help, Gradio build, API health, and Go build
+- Don’t turn this into a cache benchmark by reusing a warmed explorer instance across iterations
 
 ## What's Been Tried
-- Earlier clean-plugin benchmarking already sanded down the suite itself a lot:
-  - API logic tests moved into `api_workflow.py`
-  - OCI imports were deferred off module import paths
-  - TopicExplorer tests stopped paying real retry sleeps and real thread-pool overhead
-  - Parler tests skip before heavy imports when Parler is absent
-- That got the clean-plugin harness down into the ~0.24s range.
-- The remaining big gap was between:
-  - clean-plugin pytest wall time: about `0.23s`
-  - raw developer command wall time: about `1.5s`
-- Confirmed wins on the direct developer command target:
-  - A repo-local `pytest.py` wrapper now makes the literal `python -m pytest tests -q` command opt out of unrelated external plugin autoload before delegating to the installed pytest package.
-  - The direct API tests still use the lightweight `api_workflow.py` helpers instead of importing the whole FastAPI app.
-  - `tests/test_topic_explorer.py` now injects a tiny fake `oci` module for the retry-exhaustion unit path, so it still exercises retry behavior without constructing real OCI SDK request objects.
-- Current state:
-  - direct pytest wall time now sits around `0.13s` to `0.25s` depending on run-to-run noise
-  - the target is now close to the startup floor for this tiny unittest-style suite
-- Dead ends on the direct-command target:
-  - `sitecustomize.py` did not fire in this environment for `python -m pytest`
-  - removing `pytest.ini` was noisy and not consistently better
-  - forcing `sys.dont_write_bytecode` in the wrapper did not hold up
+- Prior targets:
+  - devloop benchmark dropped from ~17.32s to ~2.57s
+  - direct `python -m pytest tests -q` dropped from ~1.53s to ~0.13s via the repo-local pytest wrapper and cheaper unit tests
+- Reason for pivot:
+  - further pytest-only wins are now tiny and noisy
+  - the next useful performance question is the actual local TopicExplorer orchestration cost
+- Current code observations:
+  - `generate_questions()` uses a 3-worker executor plus `as_completed()` bookkeeping, then dedupes and truncates
+  - `generate_topic_bundle()` uses a shared results dict, a lock, and a second executor with `as_completed()`
+  - `_render_bundle()` builds large strings with repeated concatenation
+  - `_save_bundle()` writes 2 files per bundle and generates a unique timestamp slug each time

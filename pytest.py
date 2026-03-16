@@ -15,7 +15,6 @@ from pathlib import Path
 
 
 os.environ.setdefault("PYTEST_DISABLE_PLUGIN_AUTOLOAD", "1")
-sys.dont_write_bytecode = True
 _THIS_DIR = Path(__file__).resolve().parent
 _SEARCH_PATH = [
     entry
@@ -30,7 +29,15 @@ _REAL_PYTEST = importlib.util.module_from_spec(_SPEC)
 sys.modules.setdefault("_plane_real_pytest", _REAL_PYTEST)
 _SPEC.loader.exec_module(_REAL_PYTEST)
 
-globals().update(_REAL_PYTEST.__dict__)
+__all__ = getattr(_REAL_PYTEST, "__all__", [])
+
+
+def __getattr__(name):
+    return getattr(_REAL_PYTEST, name)
+
+
+def __dir__():
+    return sorted(set(globals()) | set(dir(_REAL_PYTEST)))
 
 
 if __name__ == "__main__":
