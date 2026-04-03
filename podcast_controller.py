@@ -44,6 +44,17 @@ def ensure_runtime_config_ready(parser: argparse.ArgumentParser, config_file: st
             f"Error: Replace placeholder values in {config_file} before running the pipeline: {', '.join(placeholder_values)}\n",
         )
 
+    try:
+        import oci
+
+        oci.config.from_file(str(Path("~/.oci/config").expanduser()), str(config_data["config_profile"]))
+    except Exception as exc:
+        parser.exit(
+            1,
+            f"Error: OCI profile '{config_data['config_profile']}' is not available via ~/.oci/config. "
+            f"Run 'oci setup config' or update {config_file}. Original error: {exc}\n",
+        )
+
 
 def main():
     global TopicExplorer, PodcastWriter, TTSGenerator, timestamp_slug

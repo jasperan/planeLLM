@@ -2,6 +2,7 @@
 """Tests for the podcast controller module."""
 
 import os
+import shutil
 import tempfile
 import unittest
 from io import StringIO
@@ -23,7 +24,7 @@ class TestPodcastController(unittest.TestCase):
 
     def tearDown(self):
         if os.path.exists(self.test_dir):
-            os.rmdir(self.test_dir)
+            shutil.rmtree(self.test_dir)
 
     @patch("podcast_controller.TopicExplorer")
     @patch("podcast_controller.PodcastWriter")
@@ -61,6 +62,23 @@ class TestPodcastController(unittest.TestCase):
 
         self.assertEqual(exc.exception.code, 1)
         self.assertIn("Copy config_example.yaml to config.yaml", stderr.getvalue())
+
+    def test_main_exits_with_guidance_when_oci_profile_is_missing(self):
+        config_path = os.path.join(self.test_dir, "config.yaml")
+        with open(config_path, "w", encoding="utf-8") as handle:
+            handle.write(
+                "compartment_id: ocid1.compartment.oc1..test\n"
+                "config_profile: DOES_NOT_EXIST\n"
+                "model_id: ocid1.generativeaimodel.oc1.test\n"
+            )
+
+        with patch("sys.argv", ["podcast_controller.py", "--topic", "Test Topic", "--config", config_path]):
+            with patch("sys.stderr", new_callable=StringIO) as stderr:
+                with self.assertRaises(SystemExit) as exc:
+                    main()
+
+        self.assertEqual(exc.exception.code, 1)
+        self.assertIn("Run 'oci setup config'", stderr.getvalue())
 
 
 if __name__ == "__main__":
