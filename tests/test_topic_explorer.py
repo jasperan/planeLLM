@@ -27,6 +27,15 @@ class _ImmediateExecutor:
         return _ImmediateFuture(fn(*args, **kwargs))
 
 
+class _ExecutorFactory:
+    def __init__(self):
+        self.calls = 0
+
+    def __call__(self, *args, **kwargs):
+        self.calls += 1
+        return _ImmediateExecutor()
+
+
 def _fake_oci_module():
     class _Model:
         API_FORMAT_GENERIC = "generic"
@@ -76,6 +85,57 @@ class TestTopicExplorer(unittest.TestCase):
         self.assertEqual(first, ["Question 1?", "Question 2?", "Question 3?", "Question 4?"])
         self.assertEqual(second, first)
         self.assertEqual(batch_mock.call_count, 3)
+
+    def test_generate_topic_bundle_reuses_one_executor(self):
+        explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
+        executor_factory = _ExecutorFactory()
+
+        def fake_explore(question, results):
+            results[question] = f"Answer for {question}"
+            explorer.execution_times["responses"][question] = 0.01
+
+        with patch.object(
+            explorer,
+            "_generate_question_batch",
+            side_effect=[
+                ["Question 1?", "Question 2?"],
+                ["Question 3?"],
+                ["Question 4?"],
+            ],
+        ):
+            with patch.object(explorer, "_explore_question_thread", side_effect=fake_explore):
+                with patch("topic_explorer.ThreadPoolExecutor", side_effect=executor_factory):
+                    with patch("topic_explorer.as_completed", side_effect=lambda futures: list(futures)):
+                        bundle = explorer.generate_topic_bundle("Test Topic", save=False)
+
+        self.assertEqual(executor_factory.calls, 1)
+        self.assertEqual(bundle["questions"], ["Question 1?", "Question 2?", "Question 3?", "Question 4?"])
+        self.assertIn("Answer for Question 1?", bundle["content"])
+
+    def test_generate_topic_bundle_uses_cached_questions(self):
+        explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
+
+        def fake_explore(question, results):
+            results[question] = f"Answer for {question}"
+            explorer.execution_times["responses"][question] = 0.01
+
+        with patch.object(
+            explorer,
+            "_generate_question_batch",
+            side_effect=[
+                ["Question 1?", "Question 2?"],
+                ["Question 3?"],
+                ["Question 4?"],
+            ],
+        ) as batch_mock:
+            with patch.object(explorer, "_explore_question_thread", side_effect=fake_explore):
+                with patch("topic_explorer.as_completed", side_effect=lambda futures: list(futures)):
+                    first = explorer.generate_topic_bundle("Test Topic", save=False)
+                    second = explorer.generate_topic_bundle("Test Topic", save=False)
+
+        self.assertEqual(batch_mock.call_count, 3)
+        self.assertEqual(second["questions"], first["questions"])
+        self.assertEqual(second["content"], first["content"])
 
     def test_explore_question_returns_llm_text(self):
         explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)

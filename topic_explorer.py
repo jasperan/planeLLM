@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import lru_cache
 from threading import Lock
 from typing import Any, Dict, List, Optional
 import argparse
@@ -11,6 +12,13 @@ import re
 import time
 
 from plane_llm_utils import build_genai_client, extract_chat_text, load_yaml_config, timestamp_slug
+
+
+@lru_cache(maxsize=1)
+def _get_oci_models():
+    import oci
+
+    return oci.generative_ai_inference.models
 
 
 class RateLimiter:
@@ -96,6 +104,21 @@ class TopicExplorer:
         response = self._call_llm(prompt)
         return self._dedupe_questions(response.splitlines())
 
+    def _generate_questions_with_executor(self, topic: str, executor: ThreadPoolExecutor) -> list[str]:
+        all_questions: list[str] = []
+        future_map = {
+            executor.submit(self._generate_question_batch, topic, batch_id): batch_id
+            for batch_id in range(1, 4)
+        }
+        ordered_batches: dict[int, list[str]] = {}
+        for future in as_completed(future_map):
+            ordered_batches[future_map[future]] = future.result()
+
+        for batch_id in sorted(ordered_batches):
+            all_questions.extend(ordered_batches[batch_id])
+
+        return self._dedupe_questions(all_questions)[:10]
+
     def generate_questions(self, topic: str) -> List[str]:
         topic_key = self._topic_key(topic)
         if topic_key in self._question_cache:
@@ -103,21 +126,10 @@ class TopicExplorer:
 
         self._log(f"\nGenerating questions about '{topic}'...")
         start_time = time.time()
-        all_questions: list[str] = []
 
         with ThreadPoolExecutor(max_workers=3) as executor:
-            future_map = {
-                executor.submit(self._generate_question_batch, topic, batch_id): batch_id
-                for batch_id in range(1, 4)
-            }
-            ordered_batches: dict[int, list[str]] = {}
-            for future in as_completed(future_map):
-                ordered_batches[future_map[future]] = future.result()
+            questions = self._generate_questions_with_executor(topic, executor)
 
-        for batch_id in sorted(ordered_batches):
-            all_questions.extend(ordered_batches[batch_id])
-
-        questions = self._dedupe_questions(all_questions)[:10]
         if not questions:
             raise RuntimeError(f"Failed to generate questions for topic: {topic}")
 
@@ -132,17 +144,17 @@ class TopicExplorer:
         return self._make_llm_call(prompt)
 
     def _make_llm_call(self, prompt: str) -> str:
-        import oci
+        models = _get_oci_models()
 
-        content = oci.generative_ai_inference.models.TextContent()
+        content = models.TextContent()
         content.text = prompt
 
-        message = oci.generative_ai_inference.models.Message()
+        message = models.Message()
         message.role = "USER"
         message.content = [content]
 
-        chat_request = oci.generative_ai_inference.models.GenericChatRequest()
-        chat_request.api_format = oci.generative_ai_inference.models.BaseChatRequest.API_FORMAT_GENERIC
+        chat_request = models.GenericChatRequest()
+        chat_request.api_format = models.BaseChatRequest.API_FORMAT_GENERIC
         chat_request.messages = [message]
         chat_request.max_tokens = 3850
         chat_request.temperature = 0.5
@@ -151,8 +163,8 @@ class TopicExplorer:
         chat_request.top_p = 0.7
         chat_request.top_k = -1
 
-        chat_detail = oci.generative_ai_inference.models.ChatDetails()
-        chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(model_id=self.model_id)
+        chat_detail = models.ChatDetails()
+        chat_detail.serving_mode = models.OnDemandServingMode(model_id=self.model_id)
         chat_detail.chat_request = chat_request
         chat_detail.compartment_id = self.compartment_id
 
@@ -229,15 +241,32 @@ class TopicExplorer:
 
         total_start_time = time.time()
         self.execution_times["responses"] = {}
-        questions = self.generate_questions(topic)
         results: Dict[str, str] = {}
+        cached_questions = self._question_cache.get(topic_key)
 
-        self._log(f"Exploring {len(questions)} questions in parallel...")
-        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-            futures = [executor.submit(self._explore_question_thread, question, results) for question in questions]
-            for index, future in enumerate(as_completed(futures), start=1):
-                future.result()
-                self._log(f"Completed {index}/{len(futures)} questions")
+        if cached_questions is not None:
+            questions = list(cached_questions)
+            self.execution_times["questions_generation"] = 0.0
+            self._log(f"\nUsing cached questions for '{topic}'...")
+            self._log(f"Exploring {len(questions)} questions in parallel...")
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                futures = [executor.submit(self._explore_question_thread, question, results) for question in questions]
+                for index, future in enumerate(as_completed(futures), start=1):
+                    future.result()
+                    self._log(f"Completed {index}/{len(futures)} questions")
+        else:
+            with ThreadPoolExecutor(max_workers=max(self.max_workers, 3)) as executor:
+                questions = self._generate_questions_with_executor(topic, executor)
+                if not questions:
+                    raise RuntimeError(f"Failed to generate questions for topic: {topic}")
+                self.execution_times["questions_generation"] = time.time() - total_start_time
+                self._question_cache[topic_key] = list(questions)
+
+                self._log(f"Exploring {len(questions)} questions in parallel...")
+                futures = [executor.submit(self._explore_question_thread, question, results) for question in questions]
+                for index, future in enumerate(as_completed(futures), start=1):
+                    future.result()
+                    self._log(f"Completed {index}/{len(futures)} questions")
 
         bundle = self._render_bundle(topic, questions, results)
         total_time = time.time() - total_start_time
