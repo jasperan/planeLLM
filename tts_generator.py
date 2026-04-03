@@ -247,6 +247,14 @@ class TTSGenerator:
             base_url = os.environ.get("FISH_BASE_URL", "https://api.fish.audio")
             self.fish_reference_id = self.fish_reference_id or os.environ.get("FISH_REFERENCE_ID", "")
 
+            if not api_key:
+                self.fish_available = False
+                raise RuntimeError(
+                    "Fish Speech requires FISH_API_KEY for the default cloud backend. "
+                    "Set FISH_API_KEY (and optionally FISH_REFERENCE_ID), or choose Bark/Parler/Coqui "
+                    "after installing 'python -m pip install -r requirements-tts-local.txt'."
+                )
+
             kwargs = {"api_key": api_key}
             if base_url != "https://api.fish.audio":
                 kwargs["base_url"] = base_url
@@ -293,17 +301,22 @@ class TTSGenerator:
             if self.fish_reference_id:
                 print(f"  Cloud reference: {self.fish_reference_id}")
 
-        except ImportError:
-            print("WARNING: fish-audio-sdk not found. Install with: pip install fish-audio-sdk")
-            print("Falling back to Bark TTS.")
-            self.model_type = "bark"
-            self._init_bark()
+        except ImportError as exc:
             self.fish_available = False
+            raise RuntimeError(
+                "Fish Speech is unavailable because fish-audio-sdk is not installed. "
+                "Install the core runtime dependencies with 'python -m pip install -r requirements.txt'."
+            ) from exc
+        except RuntimeError:
+            raise
         except Exception as e:
-            print(f"WARNING: Error initializing Fish Speech S2: {e}. Falling back to Bark.")
-            self.model_type = "bark"
-            self._init_bark()
             self.fish_available = False
+            raise RuntimeError(
+                "Fish Speech initialization failed. Set FISH_API_KEY (and optionally FISH_REFERENCE_ID), "
+                "or choose Bark/Parler/Coqui after installing "
+                "'python -m pip install -r requirements-tts-local.txt'. "
+                f"Original error: {e}"
+            ) from e
 
     def _generate_audio_fish(self, text: str, speaker: str) -> AudioSegment:
         """Generate audio using Fish Speech S2."""

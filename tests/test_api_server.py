@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 
 import api_server
 import api_workflow
+from fastapi import HTTPException
 
 
 class TestAPIWorkflow(unittest.TestCase):
@@ -56,6 +57,31 @@ class TestAPIWorkflow(unittest.TestCase):
 
         self.assertTrue(response["success"])
         self.assertNotIn("FISH_REFERENCE_ID", os.environ)
+
+    def test_create_transcript_reports_missing_runtime_config_without_fake_404(self):
+        request = api_server.TranscriptRequest(content_file="content_demo.txt", detailed=True)
+
+        with patch.object(api_server, "RESOURCES", self.resources):
+            (self.resources / request.content_file).write_text("lesson content", encoding="utf-8")
+            with patch.object(
+                api_server,
+                "_get_writer",
+                side_effect=FileNotFoundError("Config file not found: config.yaml"),
+            ):
+                response = api_server.create_transcript(request)
+
+        self.assertFalse(response["success"])
+        self.assertIn("config.yaml", response["message"])
+
+    def test_create_transcript_still_404s_for_missing_content_file(self):
+        request = api_server.TranscriptRequest(content_file="missing.txt", detailed=True)
+
+        with patch.object(api_server, "RESOURCES", self.resources):
+            with self.assertRaises(HTTPException) as exc:
+                api_server.create_transcript(request)
+
+        self.assertEqual(exc.exception.status_code, 404)
+        self.assertEqual(exc.exception.detail, "File not found: missing.txt")
 
     @patch("api_server._count_resources", side_effect=[1, 2, 3, 4])
     @patch("api_server.shutil.which", return_value="/usr/bin/ffmpeg")

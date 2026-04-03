@@ -98,6 +98,10 @@ def _resource_file(file_name: str) -> Path:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+def _is_requested_file_not_found(exc: FileNotFoundError, requested_name: str) -> bool:
+    return bool(exc.args) and str(exc.args[0]) == requested_name
+
+
 def _count_resources(suffix: str = "", keyword: str = "") -> int:
     if not RESOURCES.exists():
         return 0
@@ -152,6 +156,14 @@ def generate_topic(req: TopicRequest):
             "content_file": bundle["content_file"],
             "questions": bundle["questions"],
         }
+    except FileNotFoundError as exc:
+        return {
+            "success": False,
+            "message": str(exc),
+            "questions_file": "",
+            "content_file": "",
+            "questions": [],
+        }
     except Exception as exc:  # pragma: no cover - thin exception wrapper
         traceback.print_exc()
         return {
@@ -174,7 +186,15 @@ def create_transcript(req: TranscriptRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"File not found: {exc.args[0]}") from exc
+        missing_target = str(exc.args[0]) if exc.args else ""
+        if _is_requested_file_not_found(exc, req.content_file):
+            raise HTTPException(status_code=404, detail=f"File not found: {req.content_file}") from exc
+        return {
+            "success": False,
+            "message": missing_target or str(exc),
+            "transcript_file": "",
+            "transcript_preview": "",
+        }
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - thin exception wrapper
@@ -198,7 +218,20 @@ def generate_audio(req: AudioRequest):
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail=f"File not found: {exc.args[0]}") from exc
+        missing_target = str(exc.args[0]) if exc.args else ""
+        if _is_requested_file_not_found(exc, req.transcript_file):
+            raise HTTPException(status_code=404, detail=f"File not found: {req.transcript_file}") from exc
+        return {
+            "success": False,
+            "message": missing_target or str(exc),
+            "audio_file": "",
+        }
+    except RuntimeError as exc:
+        return {
+            "success": False,
+            "message": str(exc),
+            "audio_file": "",
+        }
     except HTTPException:
         raise
     except Exception as exc:  # pragma: no cover - thin exception wrapper
