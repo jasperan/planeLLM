@@ -12,6 +12,38 @@ PodcastWriter = None
 TTSGenerator = None
 timestamp_slug = None
 
+REQUIRED_CONFIG_KEYS = ("compartment_id", "config_profile", "model_id")
+
+
+def ensure_runtime_config_ready(parser: argparse.ArgumentParser, config_file: str) -> None:
+    from plane_llm_utils import load_yaml_config
+
+    try:
+        config_data = load_yaml_config(config_file)
+    except FileNotFoundError:
+        parser.exit(
+            1,
+            f"Error: Config file not found: {config_file}\n"
+            f"Copy config_example.yaml to {config_file} and set compartment_id, config_profile, and model_id before running the pipeline.\n",
+        )
+    except ValueError as exc:
+        parser.exit(1, f"Error: {exc}\n")
+
+    missing_keys = [key for key in REQUIRED_CONFIG_KEYS if not str(config_data.get(key, "")).strip()]
+    if missing_keys:
+        parser.exit(1, f"Error: Missing required config values in {config_file}: {', '.join(missing_keys)}\n")
+
+    placeholder_values = []
+    for key in REQUIRED_CONFIG_KEYS:
+        lowered = str(config_data.get(key, "")).strip().lower()
+        if lowered in {"compartment_ocid", "profile_name", "model_ocid"} or "example" in lowered:
+            placeholder_values.append(key)
+    if placeholder_values:
+        parser.exit(
+            1,
+            f"Error: Replace placeholder values in {config_file} before running the pipeline: {', '.join(placeholder_values)}\n",
+        )
+
 
 def main():
     global TopicExplorer, PodcastWriter, TTSGenerator, timestamp_slug
@@ -52,6 +84,7 @@ def main():
         from plane_llm_utils import timestamp_slug as timestamp_slug_fn
         timestamp_slug = timestamp_slug_fn
 
+    ensure_runtime_config_ready(parser, args.config)
     os.makedirs("./resources", exist_ok=True)
 
     print(f"\n=== Step 1: Exploring topic '{args.topic}' ===")

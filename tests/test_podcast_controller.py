@@ -4,6 +4,7 @@
 import os
 import tempfile
 import unittest
+from io import StringIO
 from unittest.mock import MagicMock, mock_open, patch
 
 from podcast_controller import main
@@ -27,7 +28,8 @@ class TestPodcastController(unittest.TestCase):
     @patch("podcast_controller.TopicExplorer")
     @patch("podcast_controller.PodcastWriter")
     @patch("podcast_controller.TTSGenerator")
-    def test_main_function_uses_all_questions_and_supported_models(self, mock_tts, mock_writer, mock_explorer):
+    @patch("podcast_controller.ensure_runtime_config_ready")
+    def test_main_function_uses_all_questions_and_supported_models(self, config_mock, mock_tts, mock_writer, mock_explorer):
         mock_explorer_instance = mock_explorer.return_value
         mock_explorer_instance.generate_questions.return_value = ["Question 1", "Question 2", "Question 3"]
         mock_explorer_instance.explore_question.return_value = "Answer to the question"
@@ -44,11 +46,21 @@ class TestPodcastController(unittest.TestCase):
                     with patch("os.listdir", return_value=[]):
                         main()
 
+        config_mock.assert_called_once()
         mock_explorer.assert_called_once_with(config_file="config.yaml")
         self.assertEqual(mock_explorer_instance.explore_question.call_count, 3)
         mock_writer.assert_called_once_with(config_file="config.yaml", transcript_length="long")
         mock_tts.assert_called_once_with(model_type="coqui", config_file="config.yaml")
         mock_tts_instance.generate_podcast.assert_called_once()
+
+    def test_main_exits_with_guidance_when_config_is_missing(self):
+        with patch("sys.argv", ["podcast_controller.py", "--topic", "Test Topic"]):
+            with patch("sys.stderr", new_callable=StringIO) as stderr:
+                with self.assertRaises(SystemExit) as exc:
+                    main()
+
+        self.assertEqual(exc.exception.code, 1)
+        self.assertIn("Copy config_example.yaml to config.yaml", stderr.getvalue())
 
 
 if __name__ == "__main__":
