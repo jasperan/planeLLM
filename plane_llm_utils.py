@@ -10,6 +10,12 @@ from typing import Any, Mapping, Optional
 import yaml
 
 OCI_GENAI_ENDPOINT = "https://inference.generativeai.us-chicago-1.oci.oraclecloud.com"
+REQUIRED_OCI_CONFIG_KEYS = ("compartment_id", "config_profile", "model_id")
+PLACEHOLDER_CONFIG_TOKENS = {
+    "compartment_ocid",
+    "profile_name",
+    "model_ocid",
+}
 
 
 def timestamp_slug() -> str:
@@ -33,6 +39,34 @@ def load_yaml_config(config_file: Optional[str]) -> dict[str, Any]:
         raise ValueError(f"Config file must contain a mapping: {path}")
 
     return data
+
+
+def has_oci_runtime_config(config_file: Optional[str] = "config.yaml") -> bool:
+    """Return True when the default OCI runtime config is locally usable."""
+    try:
+        import oci
+    except ImportError:
+        return False
+
+    try:
+        config_data = load_yaml_config(config_file)
+    except (FileNotFoundError, ValueError, yaml.YAMLError):
+        return False
+
+    for key in REQUIRED_OCI_CONFIG_KEYS:
+        value = str(config_data.get(key, "")).strip()
+        if not value:
+            return False
+        lowered = value.lower()
+        if lowered in PLACEHOLDER_CONFIG_TOKENS or "example" in lowered:
+            return False
+
+    try:
+        oci.config.from_file(str(Path("~/.oci/config").expanduser()), str(config_data["config_profile"]))
+    except Exception:
+        return False
+
+    return True
 
 
 def build_genai_client(

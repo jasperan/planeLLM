@@ -17,11 +17,11 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from plane_llm_utils import has_oci_runtime_config
 
 RESOURCES = Path("./resources").resolve()
 RESOURCES.mkdir(exist_ok=True)
 STATIC_DIR = Path("./static")
-OCI_AVAILABLE = importlib.util.find_spec("oci") is not None
 FISH_AUDIO_AVAILABLE = importlib.util.find_spec("fishaudio") is not None
 
 
@@ -113,7 +113,7 @@ def _count_resources(suffix: str = "", keyword: str = "") -> int:
 @app.get("/api/status")
 def get_status():
     return {
-        "oci_config": OCI_AVAILABLE,
+        "oci_config": has_oci_runtime_config(),
         "ffmpeg": shutil.which("ffmpeg") is not None,
         "fish_sdk": FISH_AUDIO_AVAILABLE,
         "resources_count": sum(

@@ -3,8 +3,9 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
+import api_server
 import api_workflow
 
 
@@ -55,6 +56,19 @@ class TestAPIWorkflow(unittest.TestCase):
 
         self.assertTrue(response["success"])
         self.assertNotIn("FISH_REFERENCE_ID", os.environ)
+
+    @patch("api_server._count_resources", side_effect=[1, 2, 3, 4])
+    @patch("api_server.shutil.which", return_value="/usr/bin/ffmpeg")
+    @patch("api_server.has_oci_runtime_config", return_value=False)
+    def test_status_requires_real_oci_runtime_config(self, config_mock, which_mock, count_mock):
+        status = api_server.get_status()
+
+        self.assertFalse(status["oci_config"])
+        self.assertTrue(status["ffmpeg"])
+        self.assertEqual(status["resources_count"], 10)
+        config_mock.assert_called_once_with()
+        which_mock.assert_called_once_with("ffmpeg")
+        self.assertEqual(count_mock.call_count, 4)
 
 
 if __name__ == "__main__":

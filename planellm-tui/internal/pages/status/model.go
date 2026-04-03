@@ -94,7 +94,7 @@ func (m *Model) View() string {
 	services := []string{
 		th.Header.Render("Services"),
 		"",
-		servicePanel("OCI GenAI SDK", s.OCIConfig),
+		servicePanel("OCI Runtime Config", s.OCIConfig),
 		servicePanel("FFmpeg", s.FFmpeg),
 		servicePanel("Fish Audio SDK", s.FishSDK),
 	}
