@@ -94,9 +94,12 @@ func (m *Model) View() string {
 	services := []string{
 		th.Header.Render("Services"),
 		"",
-		servicePanel("OCI Runtime Config", s.OCIConfig),
+		servicePanel("Live OCI Ready", s.LiveReady || s.OCIConfig),
+		servicePanel("OCI Auth", s.OCIAuth),
+		servicePanel("Demo Ready", s.DemoReady),
 		servicePanel("FFmpeg", s.FFmpeg),
 		servicePanel("Fish Audio SDK", s.FishSDK),
+		servicePanel("Fish API Key", s.FishAPIKey),
 	}
 
 	panelW := 35
@@ -116,6 +119,36 @@ func (m *Model) View() string {
 			th.MutedText.Render(fmt.Sprintf("%-16s", "Total files")),
 			th.AccentText.Render(fmt.Sprintf("%d", s.ResourcesCount)),
 		),
+		fmt.Sprintf("  %s %s",
+			th.MutedText.Render(fmt.Sprintf("%-16s", "Mode")),
+			th.AccentText.Render(strings.ToUpper(s.RecommendedMode)),
+		),
+		fmt.Sprintf("  %s %s",
+			th.MutedText.Render(fmt.Sprintf("%-16s", "OCI profile")),
+			th.AccentText.Render(func() string {
+				if s.ConfigProfile == "" {
+					return "(none)"
+				}
+				if s.ConfigProfileSource == "" {
+					return s.ConfigProfile
+				}
+				return fmt.Sprintf("%s [%s]", s.ConfigProfile, s.ConfigProfileSource)
+			}()),
+		),
+	}
+	if s.NextStep != "" {
+		resourceLines = append(
+			resourceLines,
+			"",
+			th.MutedText.Render("  Next step"),
+			"  "+lipgloss.NewStyle().Foreground(th.Text).Render(s.NextStep),
+		)
+	}
+	if len(s.Issues) > 0 {
+		resourceLines = append(resourceLines, "", th.MutedText.Render("  Issues"))
+		for _, issue := range s.Issues {
+			resourceLines = append(resourceLines, "  - "+issue)
+		}
 	}
 	resourceBlock := th.Panel.Width(panelW).Render(strings.Join(resourceLines, "\n"))
 

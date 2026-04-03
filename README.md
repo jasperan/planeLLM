@@ -82,6 +82,22 @@ The solution has the following features:
 
    > **Note**: You can find the model OCID by going to the OCI GenAI service console and clicking on the model you want to use (you have Llama 3.1 and 3.3 OCIDs in config_example.yaml)
 
+   planeLLM uses `~/.oci/config` for OCI authentication. The `config_profile` value in `config.yaml` should match one of the profiles returned by `oci setup config`.
+
+### First-run doctor and demo mode
+
+If you want to validate the repo before your live OCI settings are finished, use the new doctor and demo modes:
+
+```bash
+# Inspect OCI profiles, runtime readiness, ffmpeg, Fish config, and next steps
+python podcast_controller.py --doctor
+
+# Create a deterministic demo bundle that exercises the normal resources pipeline
+python podcast_controller.py --demo --topic "Ancient Rome"
+```
+
+The demo path creates reusable questions, content, transcript, and demo audio files under `./resources` so you can walk through the UI, API, and TUI without live OCI generation.
+
 ## 1. Run the application
 
 ### Option 1: Gradio Web Interface (Recommended)
@@ -92,14 +108,17 @@ Run the Gradio web interface for an interactive experience:
 python gradio_app.py
 ```
 
-The interface provides three tabs:
+The interface provides four tabs:
 
-1. **Topic Explorer**: Generate educational content about any topic
-2. **Lesson Writer**: Convert content into podcast transcript format
-3. **TTS Generator**: Generate audio from the transcript
+1. **Quick Start**: Inspect readiness and create a deterministic demo bundle without cloud dependencies
+2. **Topic Explorer**: Generate educational content about any topic
+3. **Lesson Writer**: Convert content into podcast transcript format
+4. **TTS Generator**: Generate audio from the transcript
 
 Here's a list of features for the Gradio interface:
 
+- **Quick-start doctor** with OCI profile and runtime readiness reporting
+- **Deterministic demo bundle creation** so you can walk through the full flow before live OCI is ready
 - **User-friendly interface** with progress indicators
 - **File management** with automatic saving and timestamping
 - **Component integration** allowing seamless workflow between steps
@@ -117,6 +136,8 @@ This tab allows you to:
 - Save the results to files with timestamps
 
 The topic explorer generates more structured, educational questions and creates more engaging, informative content with examples and analogies.
+
+You can also create a deterministic demo bundle from the Quick Start tab or with `python podcast_controller.py --demo --topic "Ancient Rome"` and then continue through the remaining tabs with those generated files.
 
 #### Lesson Writer
 
@@ -168,6 +189,22 @@ python podcast_controller.py --topic "Ancient Rome" --config my_config.yaml
 
 # Process each question individually for more detailed content
 python podcast_controller.py --topic "Ancient Rome" --detailed-transcript
+
+# Print a first-run readiness report
+python podcast_controller.py --doctor
+
+# Generate a local demo bundle without OCI/Fish
+python podcast_controller.py --demo --topic "Ancient Rome"
+```
+
+If `config.yaml` is missing but you have OCI profiles in `~/.oci/config`, the doctor report will tell you which profile planeLLM can see and what still needs to be configured for live mode.
+
+For a live run without a repo-local `config.yaml`, you can provide the remaining runtime values through the environment while OCI auth still comes from `~/.oci/config`:
+
+```bash
+PLANELLM_COMPARTMENT_ID=ocid1.compartment... \
+PLANELLM_MODEL_ID=ocid1.generativeaimodel... \
+python podcast_controller.py --topic "Ancient Rome"
 ```
 
 ### Option 3: Using as a Package

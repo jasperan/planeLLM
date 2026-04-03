@@ -83,6 +83,12 @@ func (c *APIClient) GenerateTopic(topic string) (*ctx.TopicResult, error) {
 	return &r, c.post("/api/topic/generate", map[string]string{"topic": topic}, &r)
 }
 
+// BootstrapDemo creates deterministic demo resources without live OCI/Fish calls.
+func (c *APIClient) BootstrapDemo(topic string) (*ctx.TopicResult, error) {
+	var r ctx.TopicResult
+	return &r, c.post("/api/demo/bootstrap", map[string]string{"topic": topic}, &r)
+}
+
 // CreateTranscript creates a podcast transcript from content.
 func (c *APIClient) CreateTranscript(contentFile string, detailed bool) (*ctx.TranscriptResult, error) {
 	var r ctx.TranscriptResult

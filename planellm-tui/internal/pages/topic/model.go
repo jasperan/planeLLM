@@ -61,6 +61,20 @@ func (m *Model) generateTopic() tea.Cmd {
 	}
 }
 
+func (m *Model) bootstrapDemo() tea.Cmd {
+	topic := strings.TrimSpace(m.input.Value())
+	if topic == "" {
+		topic = "How airplanes stay in the sky"
+	}
+	return func() tea.Msg {
+		if m.ctx.API == nil {
+			return topicResultMsg{err: fmt.Errorf("API client not configured")}
+		}
+		result, err := m.ctx.API.BootstrapDemo(topic)
+		return topicResultMsg{result: result, err: err}
+	}
+}
+
 func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -97,6 +111,13 @@ func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 				m.result = nil
 				return m, tea.Batch(m.spinner.Tick, m.generateTopic())
 			}
+		case "ctrl+d":
+			if !m.loading {
+				m.loading = true
+				m.err = nil
+				m.result = nil
+				return m, tea.Batch(m.spinner.Tick, m.bootstrapDemo())
+			}
 		case "ctrl+r":
 			// Reset
 			m.input.SetValue("")
@@ -128,11 +149,15 @@ func (m *Model) View() string {
 
 	// Loading state
 	if m.loading {
+		statusText := "Generating topic content..."
+		if m.result == nil && strings.TrimSpace(m.input.Value()) == "" {
+			statusText = "Creating demo bundle..."
+		}
 		b.WriteString(fmt.Sprintf("  %s %s\n",
 			m.spinner.View(),
-			th.AccentText.Render("Generating topic content..."),
+			th.AccentText.Render(statusText),
 		))
-		b.WriteString("  " + th.MutedText.Render("This may take a minute (LLM generation)") + "\n")
+		b.WriteString("  " + th.MutedText.Render("This may take a minute depending on mode.") + "\n")
 		return b.String()
 	}
 
@@ -157,6 +182,18 @@ func (m *Model) View() string {
 				th.AccentText.Render(m.result.ContentFile),
 			))
 		}
+		if m.result.TranscriptFile != "" {
+			b.WriteString(fmt.Sprintf("  %s %s\n",
+				th.MutedText.Render("Transcript file:"),
+				th.AccentText.Render(m.result.TranscriptFile),
+			))
+		}
+		if m.result.AudioFile != "" {
+			b.WriteString(fmt.Sprintf("  %s %s\n",
+				th.MutedText.Render("Audio file:"),
+				th.AccentText.Render(m.result.AudioFile),
+			))
+		}
 
 		if len(m.result.Questions) > 0 {
 			b.WriteString("\n  " + th.Header.Render("Generated Questions") + "\n\n")
@@ -171,7 +208,7 @@ func (m *Model) View() string {
 
 	// Hints
 	b.WriteString("\n")
-	hints := []string{"[Enter] Generate", "[Ctrl+R] Reset", "[Esc] Back to Menu"}
+	hints := []string{"[Enter] Generate", "[Ctrl+D] Demo", "[Ctrl+R] Reset", "[Esc] Back to Menu"}
 	b.WriteString("  " + th.MutedText.Render(strings.Join(hints, "  |  ")))
 
 	return b.String()
