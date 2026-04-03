@@ -11,7 +11,7 @@ import os
 import re
 import time
 
-from plane_llm_utils import build_genai_client, extract_chat_text, load_yaml_config, timestamp_slug
+from plane_llm_utils import build_genai_client, explain_oci_error, extract_chat_text, load_yaml_config, timestamp_slug
 
 
 @lru_cache(maxsize=1)
@@ -176,10 +176,10 @@ class TopicExplorer:
             except Exception as exc:  # pragma: no cover - branch validated by tests
                 last_error = exc
                 if attempt == 0:
-                    self._log(f"Error calling LLM, retrying once: {exc}")
+                    self._log(f"Error calling LLM, retrying once: {explain_oci_error(exc, model_id=self.model_id)}")
                     time.sleep(2)
 
-        raise RuntimeError(f"Failed to call OCI GenAI service: {last_error}") from last_error
+        raise RuntimeError(f"Failed to call OCI GenAI service: {explain_oci_error(last_error, model_id=self.model_id)}") from last_error
 
     def _explore_question_thread(self, question: str, results: Dict[str, str]):
         start_time = time.time()

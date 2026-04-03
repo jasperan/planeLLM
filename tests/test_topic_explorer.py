@@ -56,6 +56,11 @@ def _fake_oci_module():
     )
 
 
+class _FakeServiceError(Exception):
+    def __str__(self):
+        return "{'status': 404, 'message': 'Entity with key ocid1.generativeaimodel.oc1.test not found'}"
+
+
 class TestTopicExplorer(unittest.TestCase):
     def setUp(self):
         self.mock_config = {
@@ -153,6 +158,15 @@ class TestTopicExplorer(unittest.TestCase):
         with patch.dict(sys.modules, {"oci": _fake_oci_module()}):
             with patch("topic_explorer.time.sleep"):
                 with self.assertRaises(RuntimeError):
+                    explorer._make_llm_call("Test prompt")
+
+    def test_make_llm_call_surfaces_stale_model_guidance(self):
+        self.mock_client.chat.side_effect = _FakeServiceError()
+        explorer = TopicExplorer(config_data=self.mock_config, genai_client=self.mock_client)
+
+        with patch.dict(sys.modules, {"oci": _fake_oci_module()}):
+            with patch("topic_explorer.time.sleep"):
+                with self.assertRaisesRegex(RuntimeError, "Configured model_id 'test_model' was not found"):
                     explorer._make_llm_call("Test prompt")
 
 

@@ -8,7 +8,7 @@ import os
 import re
 import time
 
-from plane_llm_utils import build_genai_client, extract_chat_text, load_yaml_config, timestamp_slug
+from plane_llm_utils import build_genai_client, explain_oci_error, extract_chat_text, load_yaml_config, timestamp_slug
 
 
 TRANSCRIPT_PRESETS = {
@@ -136,7 +136,12 @@ Here's the educational content to transform:
         chat_detail.chat_request = chat_request
         chat_detail.compartment_id = self.compartment_id
 
-        response = self.genai_client.chat(chat_detail)
+        try:
+            response = self.genai_client.chat(chat_detail)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Failed to call OCI GenAI service: {explain_oci_error(exc, model_id=self.model_id)}"
+            ) from exc
         result = extract_chat_text(response)
         duration = time.time() - start_time
         self.execution_times["llm_calls"].append(
