@@ -83,18 +83,67 @@ class TestAPIWorkflow(unittest.TestCase):
         self.assertEqual(exc.exception.status_code, 404)
         self.assertEqual(exc.exception.detail, "File not found: missing.txt")
 
-    @patch("api_server._count_resources", side_effect=[1, 2, 3, 4])
-    @patch("api_server.shutil.which", return_value="/usr/bin/ffmpeg")
-    @patch("api_server.has_oci_runtime_config", return_value=False)
-    def test_status_requires_real_oci_runtime_config(self, config_mock, which_mock, count_mock):
+    @patch(
+        "api_server.build_runtime_preflight",
+        return_value={
+            "oci_config": False,
+            "ffmpeg": True,
+            "fish_sdk": True,
+            "resources_count": 10,
+            "recommended_mode": "demo",
+            "next_step": "Create a demo bundle.",
+        },
+    )
+    def test_status_requires_real_oci_runtime_config(self, preflight_mock):
         status = api_server.get_status()
 
         self.assertFalse(status["oci_config"])
         self.assertTrue(status["ffmpeg"])
         self.assertEqual(status["resources_count"], 10)
-        config_mock.assert_called_once_with()
-        which_mock.assert_called_once_with("ffmpeg")
-        self.assertEqual(count_mock.call_count, 4)
+        self.assertEqual(status["recommended_mode"], "demo")
+        preflight_mock.assert_called_once()
+
+    @patch(
+        "api_server.build_runtime_preflight",
+        return_value={
+            "oci_config": False,
+            "ffmpeg": True,
+            "fish_sdk": True,
+            "resources_count": 4,
+            "recommended_mode": "demo",
+            "next_step": "Create a demo bundle.",
+        },
+    )
+    def test_preflight_endpoint_returns_runtime_details(self, preflight_mock):
+        status = api_server.get_preflight()
+
+        self.assertEqual(status["recommended_mode"], "demo")
+        self.assertEqual(status["resources_count"], 4)
+        preflight_mock.assert_called_once()
+
+    @patch(
+        "api_server.create_demo_bundle",
+        return_value={
+            "success": True,
+            "message": "Created a demo bundle for 'Ancient Rome'.",
+            "topic": "Ancient Rome",
+            "questions_file": "questions_demo.txt",
+            "content_file": "content_demo.txt",
+            "transcript_file": "podcast_transcript_demo.txt",
+            "audio_file": "podcast_demo.mp3",
+            "audio_message": "Demo audio generated successfully.",
+            "questions": ["Question 1?"],
+        },
+    )
+    def test_bootstrap_demo_returns_bundle_metadata(self, bundle_mock):
+        request = api_server.DemoRequest(topic="Ancient Rome")
+
+        response = api_server.bootstrap_demo(request)
+
+        self.assertTrue(response["success"])
+        self.assertEqual(response["audio_file"], "podcast_demo.mp3")
+        self.assertEqual(response["questions"], ["Question 1?"])
+        bundle_mock.assert_called_once()
 
 
 if __name__ == "__main__":

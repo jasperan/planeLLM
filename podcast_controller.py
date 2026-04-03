@@ -11,56 +11,95 @@ TopicExplorer = None
 PodcastWriter = None
 TTSGenerator = None
 timestamp_slug = None
+create_demo_bundle = None
+build_runtime_preflight = None
+resolve_runtime_config_data = None
 
-REQUIRED_CONFIG_KEYS = ("compartment_id", "config_profile", "model_id")
 
+def ensure_runtime_config_ready(parser: argparse.ArgumentParser, config_file: str) -> dict:
+    preflight = build_runtime_preflight(config_file)
+    config_data = resolve_runtime_config_data(config_file)
 
-def ensure_runtime_config_ready(parser: argparse.ArgumentParser, config_file: str) -> None:
-    from plane_llm_utils import load_yaml_config
+    if preflight["live_ready"]:
+        return config_data
 
-    try:
-        config_data = load_yaml_config(config_file)
-    except FileNotFoundError:
+    if not preflight["config_file_present"] and preflight["config_profile_source"] != "environment":
         parser.exit(
             1,
             f"Error: Config file not found: {config_file}\n"
-            f"Copy config_example.yaml to {config_file} and set compartment_id, config_profile, and model_id before running the pipeline.\n",
+            f"Copy config_example.yaml to {config_file} and set compartment_id, config_profile, and model_id before running the pipeline.\n"
+            "You can also set PLANELLM_COMPARTMENT_ID / PLANELLM_MODEL_ID and rely on ~/.oci/config for auth.\n",
         )
-    except ValueError as exc:
-        parser.exit(1, f"Error: {exc}\n")
 
-    missing_keys = [key for key in REQUIRED_CONFIG_KEYS if not str(config_data.get(key, "")).strip()]
+    if preflight["config_error"]:
+        parser.exit(1, f"Error: {preflight['config_error']}\n")
+
+    missing_keys = []
+    if not preflight["compartment_id_present"]:
+        missing_keys.append("compartment_id")
+    if not preflight["model_id_present"]:
+        missing_keys.append("model_id")
+    if not preflight["config_profile"]:
+        missing_keys.append("config_profile")
     if missing_keys:
         parser.exit(1, f"Error: Missing required config values in {config_file}: {', '.join(missing_keys)}\n")
 
-    placeholder_values = []
-    for key in REQUIRED_CONFIG_KEYS:
-        lowered = str(config_data.get(key, "")).strip().lower()
-        if lowered in {"compartment_ocid", "profile_name", "model_ocid"} or "example" in lowered:
-            placeholder_values.append(key)
-    if placeholder_values:
+    if preflight["config_file_present"] and (
+        not preflight["compartment_id_present"] or not preflight["model_id_present"]
+    ):
         parser.exit(
             1,
-            f"Error: Replace placeholder values in {config_file} before running the pipeline: {', '.join(placeholder_values)}\n",
+            f"Error: Replace placeholder values in {config_file} before running the pipeline.\n",
         )
 
-    try:
-        import oci
-
-        oci.config.from_file(str(Path("~/.oci/config").expanduser()), str(config_data["config_profile"]))
-    except Exception as exc:
+    if preflight["config_profile"] and not preflight["oci_profile_available"]:
         parser.exit(
             1,
-            f"Error: OCI profile '{config_data['config_profile']}' is not available via ~/.oci/config. "
-            f"Run 'oci setup config' or update {config_file}. Original error: {exc}\n",
+            f"Error: OCI profile '{preflight['config_profile']}' is not available via ~/.oci/config. "
+            f"Run 'oci setup config' or update {config_file}.\n",
         )
+
+    if preflight["config_profile"] and not preflight["oci_auth"]:
+        parser.exit(
+            1,
+            f"Error: OCI profile '{preflight['config_profile']}' could not be authenticated via ~/.oci/config. "
+            f"Run 'oci setup config' or update {config_file}. Original error: {preflight['oci_auth_error']}\n",
+        )
+
+    return config_data
+
+
+def print_doctor_report(config_file: str) -> None:
+    report = build_runtime_preflight(config_file)
+    profiles = ", ".join(report["oci_profiles"]) if report["oci_profiles"] else "(none found)"
+
+    print("planeLLM Doctor")
+    print("================")
+    print(f"Config file:        {report['config_file'] or config_file}")
+    print(f"Config present:     {'yes' if report['config_file_present'] else 'no'}")
+    print(f"Selected profile:   {report['config_profile'] or '(none)'} ({report['config_profile_source']})")
+    print(f"OCI profiles:       {profiles}")
+    print(f"OCI auth ready:     {'yes' if report['oci_auth'] else 'no'}")
+    print(f"Compartment ID:     {'ready' if report['compartment_id_present'] else 'missing'}")
+    print(f"Model ID:           {'ready' if report['model_id_present'] else 'missing'}")
+    print(f"FFmpeg:             {'ready' if report['ffmpeg'] else 'missing'}")
+    print(f"Fish SDK:           {'installed' if report['fish_sdk'] else 'missing'}")
+    print(f"FISH_API_KEY:       {'set' if report['fish_api_key'] else 'missing'}")
+    print(f"Resources tracked:  {report['resources_count']}")
+    print(f"Recommended mode:   {report['recommended_mode']}")
+    print(f"Next step:          {report['next_step']}")
+    if report["issues"]:
+        print("\nIssues")
+        print("------")
+        for issue in report["issues"]:
+            print(f"- {issue}")
 
 
 def main():
-    global TopicExplorer, PodcastWriter, TTSGenerator, timestamp_slug
+    global TopicExplorer, PodcastWriter, TTSGenerator, timestamp_slug, create_demo_bundle, build_runtime_preflight, resolve_runtime_config_data
 
     parser = argparse.ArgumentParser(description="Generate an educational podcast on any topic")
-    parser.add_argument("--topic", required=True, help="Topic to generate a podcast about")
+    parser.add_argument("--topic", help="Topic to generate a podcast about")
     parser.add_argument(
         "--tts-model",
         default="fish",
@@ -80,6 +119,16 @@ def main():
         action="store_true",
         help="Process each question individually for more detailed content",
     )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Inspect first-run readiness, OCI profiles, and local runtime dependencies",
+    )
+    parser.add_argument(
+        "--demo",
+        action="store_true",
+        help="Create a deterministic demo bundle without OCI or Fish credentials",
+    )
     args = parser.parse_args()
 
     if TopicExplorer is None:
@@ -94,12 +143,41 @@ def main():
     if timestamp_slug is None:
         from plane_llm_utils import timestamp_slug as timestamp_slug_fn
         timestamp_slug = timestamp_slug_fn
+    if build_runtime_preflight is None:
+        from plane_llm_utils import build_runtime_preflight as build_runtime_preflight_fn
+        build_runtime_preflight = build_runtime_preflight_fn
+    if resolve_runtime_config_data is None:
+        from plane_llm_utils import resolve_runtime_config_data as resolve_runtime_config_data_fn
+        resolve_runtime_config_data = resolve_runtime_config_data_fn
+    if create_demo_bundle is None:
+        from demo_bundle import create_demo_bundle as create_demo_bundle_fn
+        create_demo_bundle = create_demo_bundle_fn
 
-    ensure_runtime_config_ready(parser, args.config)
+    if args.doctor:
+        print_doctor_report(args.config)
+        return
+
+    if not args.topic:
+        parser.error("--topic is required unless --doctor is used")
+
+    if args.demo:
+        bundle = create_demo_bundle(args.topic, output_audio_path=args.output)
+        print("\n=== Demo Bundle Complete ===")
+        print(f"Questions: ./resources/{bundle['questions_file']}")
+        print(f"Content: ./resources/{bundle['content_file']}")
+        print(f"Transcript: ./resources/{bundle['transcript_file']}")
+        if bundle["audio_path"]:
+            print(f"Audio: {bundle['audio_path']}")
+        else:
+            print(f"Audio: {bundle['audio_message']}")
+        print(f"\n{bundle['message']}")
+        return
+
+    config_data = ensure_runtime_config_ready(parser, args.config)
     os.makedirs("./resources", exist_ok=True)
 
     print(f"\n=== Step 1: Exploring topic '{args.topic}' ===")
-    explorer = TopicExplorer(config_file=args.config)
+    explorer = TopicExplorer(config_file=args.config, config_data=config_data)
     questions = explorer.generate_questions(args.topic)
     timestamp = timestamp_slug()
 
@@ -121,7 +199,7 @@ def main():
     print(f"Raw content saved to {content_file}")
 
     print("\n=== Step 2: Creating podcast transcript ===")
-    writer = PodcastWriter(config_file=args.config, transcript_length=args.transcript_length)
+    writer = PodcastWriter(config_file=args.config, config_data=config_data, transcript_length=args.transcript_length)
     transcript = writer.create_detailed_podcast_transcript(content) if args.detailed_transcript else writer.create_podcast_transcript(content)
 
     print("\n=== Step 3: Generating podcast audio ===")

@@ -48,9 +48,13 @@ class TestPodcastController(unittest.TestCase):
                         main()
 
         config_mock.assert_called_once()
-        mock_explorer.assert_called_once_with(config_file="config.yaml")
+        mock_explorer.assert_called_once_with(config_file="config.yaml", config_data=config_mock.return_value)
         self.assertEqual(mock_explorer_instance.explore_question.call_count, 3)
-        mock_writer.assert_called_once_with(config_file="config.yaml", transcript_length="long")
+        mock_writer.assert_called_once_with(
+            config_file="config.yaml",
+            config_data=config_mock.return_value,
+            transcript_length="long",
+        )
         mock_tts.assert_called_once_with(model_type="coqui", config_file="config.yaml")
         mock_tts_instance.generate_podcast.assert_called_once()
 
@@ -79,6 +83,54 @@ class TestPodcastController(unittest.TestCase):
 
         self.assertEqual(exc.exception.code, 1)
         self.assertIn("Run 'oci setup config'", stderr.getvalue())
+
+    def test_doctor_mode_prints_without_topic(self):
+        with patch("sys.argv", ["podcast_controller.py", "--doctor"]):
+            with patch("sys.stdout", new_callable=StringIO) as stdout:
+                main()
+
+        self.assertIn("planeLLM Doctor", stdout.getvalue())
+
+    @patch("podcast_controller.create_demo_bundle")
+    def test_demo_mode_uses_local_bundle_path(self, demo_mock):
+        demo_mock.return_value = {
+            "questions_file": "questions_demo.txt",
+            "content_file": "content_demo.txt",
+            "transcript_file": "podcast_transcript_demo.txt",
+            "audio_path": os.path.join(self.test_dir, "demo.mp3"),
+            "audio_message": "Demo audio generated successfully.",
+            "message": "Created a demo bundle for 'Test Topic'.",
+        }
+
+        with patch("sys.argv", ["podcast_controller.py", "--demo", "--topic", "Test Topic"]):
+            with patch("sys.stdout", new_callable=StringIO) as stdout:
+                main()
+
+        demo_mock.assert_called_once()
+        self.assertIn("Demo Bundle Complete", stdout.getvalue())
+
+    @patch("podcast_controller.print_doctor_report")
+    def test_main_runs_doctor_without_topic(self, doctor_mock):
+        with patch("sys.argv", ["podcast_controller.py", "--doctor"]):
+            main()
+
+        doctor_mock.assert_called_once_with("config.yaml")
+
+    @patch("podcast_controller.create_demo_bundle")
+    def test_main_runs_demo_without_runtime_config(self, demo_mock):
+        demo_mock.return_value = {
+            "questions_file": "questions_demo.txt",
+            "content_file": "content_demo.txt",
+            "transcript_file": "podcast_transcript_demo.txt",
+            "audio_path": os.path.join(self.test_dir, "demo.mp3"),
+            "audio_message": "ok",
+            "message": "Created demo",
+        }
+
+        with patch("sys.argv", ["podcast_controller.py", "--demo", "--topic", "Test Topic"]):
+            main()
+
+        demo_mock.assert_called_once_with("Test Topic", output_audio_path=None)
 
 
 if __name__ == "__main__":

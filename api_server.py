@@ -5,19 +5,19 @@ from __future__ import annotations
 
 import importlib.util
 import os
-import shutil
 import traceback
 from pathlib import Path
 from typing import Optional
 
 import api_workflow
+from demo_bundle import DEFAULT_DEMO_TOPIC, create_demo_bundle
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from plane_llm_utils import has_oci_runtime_config
+from plane_llm_utils import build_runtime_preflight
 
 RESOURCES = Path("./resources").resolve()
 RESOURCES.mkdir(exist_ok=True)
@@ -61,6 +61,10 @@ class AudioRequest(BaseModel):
     tts_model: str = "fish"
     fish_reference: Optional[str] = ""
     fish_emotion: Optional[str] = ""
+
+
+class DemoRequest(BaseModel):
+    topic: str = DEFAULT_DEMO_TOPIC
 
 
 _explorer = None
@@ -116,19 +120,16 @@ def _count_resources(suffix: str = "", keyword: str = "") -> int:
 
 @app.get("/api/status")
 def get_status():
-    return {
-        "oci_config": has_oci_runtime_config(),
-        "ffmpeg": shutil.which("ffmpeg") is not None,
-        "fish_sdk": FISH_AUDIO_AVAILABLE,
-        "resources_count": sum(
-            [
-                _count_resources(suffix=".txt", keyword="questions"),
-                _count_resources(suffix=".txt", keyword="content"),
-                _count_resources(suffix=".txt", keyword="podcast"),
-                _count_resources(suffix=".mp3"),
-            ]
-        ),
-    }
+    preflight = build_runtime_preflight(resources_dir=RESOURCES)
+    preflight["fish_sdk"] = preflight.get("fish_sdk", FISH_AUDIO_AVAILABLE)
+    return preflight
+
+
+@app.get("/api/preflight")
+def get_preflight():
+    preflight = build_runtime_preflight(resources_dir=RESOURCES)
+    preflight["fish_sdk"] = preflight.get("fish_sdk", FISH_AUDIO_AVAILABLE)
+    return preflight
 
 
 @app.get("/api/files")
@@ -240,6 +241,40 @@ def generate_audio(req: AudioRequest):
             "success": False,
             "message": str(exc),
             "audio_file": "",
+        }
+
+
+@app.post("/api/demo/bootstrap")
+def bootstrap_demo(req: DemoRequest):
+    try:
+        bundle = create_demo_bundle(req.topic, resources_dir=RESOURCES)
+        return {
+            "success": True,
+            "message": bundle["message"],
+            "topic": bundle["topic"],
+            "questions_file": bundle["questions_file"],
+            "content_file": bundle["content_file"],
+            "transcript_file": bundle["transcript_file"],
+            "audio_file": bundle["audio_file"],
+            "audio_message": bundle["audio_message"],
+            "questions": bundle["questions"],
+            "content_preview": str(bundle.get("content", ""))[:500],
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:  # pragma: no cover - thin exception wrapper
+        traceback.print_exc()
+        return {
+            "success": False,
+            "message": str(exc),
+            "topic": req.topic,
+            "questions_file": "",
+            "content_file": "",
+            "transcript_file": "",
+            "audio_file": "",
+            "audio_message": "",
+            "questions": [],
+            "content_preview": "",
         }
 
 
