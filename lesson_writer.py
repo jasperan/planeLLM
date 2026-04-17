@@ -8,7 +8,14 @@ import os
 import re
 import time
 
-from plane_llm_utils import build_genai_client, explain_oci_error, extract_chat_text, load_yaml_config, timestamp_slug
+from plane_llm_utils import (
+    build_chat_details,
+    build_genai_client,
+    explain_oci_error,
+    extract_chat_text,
+    load_yaml_config,
+    timestamp_slug,
+)
 
 
 TRANSCRIPT_PRESETS = {
@@ -111,30 +118,14 @@ Here's the educational content to transform:
 """
 
     def _call_llm(self, prompt: str) -> str:
-        import oci
-
         start_time = time.time()
-
-        content = oci.generative_ai_inference.models.TextContent()
-        content.text = prompt
-        message = oci.generative_ai_inference.models.Message()
-        message.role = "USER"
-        message.content = [content]
-
-        chat_request = oci.generative_ai_inference.models.GenericChatRequest()
-        chat_request.api_format = oci.generative_ai_inference.models.BaseChatRequest.API_FORMAT_GENERIC
-        chat_request.messages = [message]
-        chat_request.max_tokens = self.max_tokens
-        chat_request.temperature = 0.7
-        chat_request.frequency_penalty = 0.0
-        chat_request.presence_penalty = 0
-        chat_request.top_p = 0.7
-        chat_request.top_k = -1
-
-        chat_detail = oci.generative_ai_inference.models.ChatDetails()
-        chat_detail.serving_mode = oci.generative_ai_inference.models.OnDemandServingMode(model_id=self.model_id)
-        chat_detail.chat_request = chat_request
-        chat_detail.compartment_id = self.compartment_id
+        chat_detail = build_chat_details(
+            prompt=prompt,
+            model_id=self.model_id,
+            compartment_id=self.compartment_id,
+            max_tokens=self.max_tokens,
+            temperature=0.7,
+        )
 
         try:
             response = self.genai_client.chat(chat_detail)

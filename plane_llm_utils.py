@@ -253,6 +253,47 @@ def build_genai_client(
     )
 
 
+def build_chat_details(
+    *,
+    prompt: str,
+    model_id: str,
+    compartment_id: str,
+    max_tokens: int,
+    temperature: float,
+    top_p: float = 0.7,
+    top_k: int = -1,
+    frequency_penalty: float = 0.0,
+    presence_penalty: float = 0.0,
+):
+    """Build an OCI GenAI ChatDetails payload for a single-turn USER prompt."""
+    import oci
+
+    models = oci.generative_ai_inference.models
+
+    content = models.TextContent()
+    content.text = prompt
+
+    message = models.Message()
+    message.role = "USER"
+    message.content = [content]
+
+    chat_request = models.GenericChatRequest()
+    chat_request.api_format = models.BaseChatRequest.API_FORMAT_GENERIC
+    chat_request.messages = [message]
+    chat_request.max_tokens = max_tokens
+    chat_request.temperature = temperature
+    chat_request.frequency_penalty = frequency_penalty
+    chat_request.presence_penalty = presence_penalty
+    chat_request.top_p = top_p
+    chat_request.top_k = top_k
+
+    chat_detail = models.ChatDetails()
+    chat_detail.serving_mode = models.OnDemandServingMode(model_id=model_id)
+    chat_detail.chat_request = chat_request
+    chat_detail.compartment_id = compartment_id
+    return chat_detail
+
+
 def extract_chat_text(response: Any) -> str:
     """Extract the text payload from OCI responses and test doubles."""
     payload = getattr(response, "data", response)

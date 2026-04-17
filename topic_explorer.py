@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import lru_cache
 from threading import Lock
 from typing import Any, Dict, List, Optional
 import argparse
@@ -11,14 +10,31 @@ import os
 import re
 import time
 
-from plane_llm_utils import build_genai_client, explain_oci_error, extract_chat_text, load_yaml_config, timestamp_slug
+from plane_llm_utils import (
+    build_chat_details,
+    build_genai_client,
+    explain_oci_error,
+    extract_chat_text,
+    load_yaml_config,
+    timestamp_slug,
+)
 
 
-@lru_cache(maxsize=1)
-def _get_oci_models():
-    import oci
+_QUESTION_EXPLORATION_PROMPT = """As an expert educator, provide a detailed, engaging response to this question:
+        {question}
 
-    return oci.generative_ai_inference.models
+        Your response should:
+        1. Be detailed and educational (aim for 500-700 words)
+        2. Start with a clear, direct answer to the question
+        3. Include specific examples, data, or evidence to support key points
+        4. Share interesting anecdotes or lesser-known facts that make the content memorable
+        5. Use analogies or comparisons to explain complex concepts when appropriate
+        6. Connect the topic to broader contexts or real-world applications
+        7. Use a conversational, accessible tone while maintaining educational value
+        8. End with a brief summary or takeaway that reinforces the main points
+
+        Focus on accuracy, clarity, and making the content engaging for learners.
+        """
 
 
 class RateLimiter:
@@ -144,29 +160,13 @@ class TopicExplorer:
         return self._make_llm_call(prompt)
 
     def _make_llm_call(self, prompt: str) -> str:
-        models = _get_oci_models()
-
-        content = models.TextContent()
-        content.text = prompt
-
-        message = models.Message()
-        message.role = "USER"
-        message.content = [content]
-
-        chat_request = models.GenericChatRequest()
-        chat_request.api_format = models.BaseChatRequest.API_FORMAT_GENERIC
-        chat_request.messages = [message]
-        chat_request.max_tokens = 3850
-        chat_request.temperature = 0.5
-        chat_request.frequency_penalty = 0.0
-        chat_request.presence_penalty = 0
-        chat_request.top_p = 0.7
-        chat_request.top_k = -1
-
-        chat_detail = models.ChatDetails()
-        chat_detail.serving_mode = models.OnDemandServingMode(model_id=self.model_id)
-        chat_detail.chat_request = chat_request
-        chat_detail.compartment_id = self.compartment_id
+        chat_detail = build_chat_details(
+            prompt=prompt,
+            model_id=self.model_id,
+            compartment_id=self.compartment_id,
+            max_tokens=3850,
+            temperature=0.5,
+        )
 
         last_error = None
         for attempt in range(2):
@@ -183,23 +183,7 @@ class TopicExplorer:
 
     def _explore_question_thread(self, question: str, results: Dict[str, str]):
         start_time = time.time()
-        response = self._call_llm(
-            f"""As an expert educator, provide a detailed, engaging response to this question:
-        {question}
-
-        Your response should:
-        1. Be detailed and educational (aim for 500-700 words)
-        2. Start with a clear, direct answer to the question
-        3. Include specific examples, data, or evidence to support key points
-        4. Share interesting anecdotes or lesser-known facts that make the content memorable
-        5. Use analogies or comparisons to explain complex concepts when appropriate
-        6. Connect the topic to broader contexts or real-world applications
-        7. Use a conversational, accessible tone while maintaining educational value
-        8. End with a brief summary or takeaway that reinforces the main points
-
-        Focus on accuracy, clarity, and making the content engaging for learners.
-        """
-        )
+        response = self._call_llm(_QUESTION_EXPLORATION_PROMPT.format(question=question))
 
         with self.response_lock:
             results[question] = response
@@ -292,23 +276,7 @@ class TopicExplorer:
     def explore_question(self, question: str) -> str:
         self._log(f"\nExploring: {question}")
         start_time = time.time()
-        response = self._call_llm(
-            f"""As an expert educator, provide a detailed, engaging response to this question:
-        {question}
-
-        Your response should:
-        1. Be detailed and educational (aim for 500-700 words)
-        2. Start with a clear, direct answer to the question
-        3. Include specific examples, data, or evidence to support key points
-        4. Share interesting anecdotes or lesser-known facts that make the content memorable
-        5. Use analogies or comparisons to explain complex concepts when appropriate
-        6. Connect the topic to broader contexts or real-world applications
-        7. Use a conversational, accessible tone while maintaining educational value
-        8. End with a brief summary or takeaway that reinforces the main points
-
-        Focus on accuracy, clarity, and making the content engaging for learners.
-        """
-        )
+        response = self._call_llm(_QUESTION_EXPLORATION_PROMPT.format(question=question))
         duration = time.time() - start_time
         self._log(f"Generated {len(response.split())} words in {duration:.2f} seconds")
         return response
