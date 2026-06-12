@@ -118,18 +118,20 @@ def _count_resources(suffix: str = "", keyword: str = "") -> int:
     )
 
 
-@app.get("/api/status")
-def get_status():
+def _runtime_preflight() -> dict:
     preflight = build_runtime_preflight(resources_dir=RESOURCES)
     preflight["fish_sdk"] = preflight.get("fish_sdk", FISH_AUDIO_AVAILABLE)
     return preflight
+
+
+@app.get("/api/status")
+def get_status():
+    return _runtime_preflight()
 
 
 @app.get("/api/preflight")
 def get_preflight():
-    preflight = build_runtime_preflight(resources_dir=RESOURCES)
-    preflight["fish_sdk"] = preflight.get("fish_sdk", FISH_AUDIO_AVAILABLE)
-    return preflight
+    return _runtime_preflight()
 
 
 @app.get("/api/files")

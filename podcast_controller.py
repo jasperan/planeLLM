@@ -7,13 +7,11 @@ import argparse
 import os
 from pathlib import Path
 
-TopicExplorer = None
-PodcastWriter = None
-TTSGenerator = None
-timestamp_slug = None
-create_demo_bundle = None
-build_runtime_preflight = None
-resolve_runtime_config_data = None
+from demo_bundle import create_demo_bundle
+from lesson_writer import PodcastWriter
+from plane_llm_utils import build_runtime_preflight, resolve_runtime_config_data, timestamp_slug
+from topic_explorer import TopicExplorer
+from tts_generator import TTSGenerator
 
 
 def ensure_runtime_config_ready(parser: argparse.ArgumentParser, config_file: str) -> dict:
@@ -96,8 +94,6 @@ def print_doctor_report(config_file: str) -> None:
 
 
 def main():
-    global TopicExplorer, PodcastWriter, TTSGenerator, timestamp_slug, create_demo_bundle, build_runtime_preflight, resolve_runtime_config_data
-
     parser = argparse.ArgumentParser(description="Generate an educational podcast on any topic")
     parser.add_argument("--topic", help="Topic to generate a podcast about")
     parser.add_argument(
@@ -130,28 +126,6 @@ def main():
         help="Create a deterministic demo bundle without OCI or Fish credentials",
     )
     args = parser.parse_args()
-
-    if TopicExplorer is None:
-        from topic_explorer import TopicExplorer as TopicExplorerClass
-        TopicExplorer = TopicExplorerClass
-    if PodcastWriter is None:
-        from lesson_writer import PodcastWriter as PodcastWriterClass
-        PodcastWriter = PodcastWriterClass
-    if TTSGenerator is None:
-        from tts_generator import TTSGenerator as TTSGeneratorClass
-        TTSGenerator = TTSGeneratorClass
-    if timestamp_slug is None:
-        from plane_llm_utils import timestamp_slug as timestamp_slug_fn
-        timestamp_slug = timestamp_slug_fn
-    if build_runtime_preflight is None:
-        from plane_llm_utils import build_runtime_preflight as build_runtime_preflight_fn
-        build_runtime_preflight = build_runtime_preflight_fn
-    if resolve_runtime_config_data is None:
-        from plane_llm_utils import resolve_runtime_config_data as resolve_runtime_config_data_fn
-        resolve_runtime_config_data = resolve_runtime_config_data_fn
-    if create_demo_bundle is None:
-        from demo_bundle import create_demo_bundle as create_demo_bundle_fn
-        create_demo_bundle = create_demo_bundle_fn
 
     if args.doctor:
         print_doctor_report(args.config)

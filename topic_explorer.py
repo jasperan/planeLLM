@@ -189,6 +189,13 @@ class TopicExplorer:
             results[question] = response
             self.execution_times["responses"][question] = time.time() - start_time
 
+    def _explore_questions(self, executor: ThreadPoolExecutor, questions: List[str], results: Dict[str, str]) -> None:
+        self._log(f"Exploring {len(questions)} questions in parallel...")
+        futures = [executor.submit(self._explore_question_thread, question, results) for question in questions]
+        for index, future in enumerate(as_completed(futures), start=1):
+            future.result()
+            self._log(f"Completed {index}/{len(futures)} questions")
+
     def _render_bundle(self, topic: str, questions: List[str], results: Dict[str, str]) -> dict[str, Any]:
         full_content = f"# {topic}\n\n"
         questions_text = f"# Questions for {topic}\n\n"
@@ -232,12 +239,8 @@ class TopicExplorer:
             questions = list(cached_questions)
             self.execution_times["questions_generation"] = 0.0
             self._log(f"\nUsing cached questions for '{topic}'...")
-            self._log(f"Exploring {len(questions)} questions in parallel...")
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = [executor.submit(self._explore_question_thread, question, results) for question in questions]
-                for index, future in enumerate(as_completed(futures), start=1):
-                    future.result()
-                    self._log(f"Completed {index}/{len(futures)} questions")
+                self._explore_questions(executor, questions, results)
         else:
             with ThreadPoolExecutor(max_workers=max(self.max_workers, 3)) as executor:
                 questions = self._generate_questions_with_executor(topic, executor)
@@ -245,12 +248,7 @@ class TopicExplorer:
                     raise RuntimeError(f"Failed to generate questions for topic: {topic}")
                 self.execution_times["questions_generation"] = time.time() - total_start_time
                 self._question_cache[topic_key] = list(questions)
-
-                self._log(f"Exploring {len(questions)} questions in parallel...")
-                futures = [executor.submit(self._explore_question_thread, question, results) for question in questions]
-                for index, future in enumerate(as_completed(futures), start=1):
-                    future.result()
-                    self._log(f"Completed {index}/{len(futures)} questions")
+                self._explore_questions(executor, questions, results)
 
         bundle = self._render_bundle(topic, questions, results)
         total_time = time.time() - total_start_time

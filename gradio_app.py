@@ -157,11 +157,6 @@ class PlaneLLMInterface:
 
         try:
             progress(0, desc=f"Initializing {model_type} model...")
-            global TTSGenerator
-            if TTSGenerator is None:
-                from tts_generator import TTSGenerator as TTSGeneratorClass
-                TTSGenerator = TTSGeneratorClass
-
             if self.tts_generator is None or self.tts_generator.model_type != model_type:
                 self.tts_generator = TTSGenerator(model_type=model_type, fish_reference_id=fish_reference or None)
 

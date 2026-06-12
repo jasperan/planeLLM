@@ -815,38 +815,15 @@ class TTSGenerator:
             # Parse transcript into speaker segments
             segments = self._parse_transcript(transcript_text)
             print(f"Parsed {len(segments)} speaker segments")
-            
-            # Store speaker voice assignments to ensure consistency
-            speaker_voices = {}
-            
+
             # Generate audio for each segment
             full_audio = AudioSegment.empty()
-            
+
             for i, (speaker, text) in enumerate(tqdm.tqdm(segments, desc="Generating audio segments")):
                 start_time = time.time()
-                
+
                 print(f"\nProcessing segment {i+1}/{len(segments)}: {speaker} ({len(text)} chars)")
-                
-                # Ensure consistent voice for each speaker
-                if speaker not in speaker_voices:
-                    # First time seeing this speaker, assign a voice
-                    if self.model_type == "bark":
-                        voice = self.speakers.get(speaker, 'default')
-                    elif self.model_type == "parler":
-                        voice_type = self.speaker_voice_map.get(speaker, "male_clear")
-                        voice = voice_type
-                    elif self.model_type == "fish":
-                        voice = self.fish_speaker_map.get(speaker, self.fish_reference_id)
-                    else:  # coqui
-                        voice = self.speakers.get(speaker, 'default')
-                    
-                    speaker_voices[speaker] = voice
-                    print(f"  Assigned voice for {speaker}: {voice}")
-                else:
-                    # Use the previously assigned voice
-                    voice = speaker_voices[speaker]
-                    print(f"  Using consistent voice for {speaker}: {voice}")
-                
+
                 # For Parler and Fish, we don't need to chunk the text as they can handle longer inputs
                 if self.model_type == "parler":
                     print(f"  Generating audio for entire segment ({len(text)} chars)")
