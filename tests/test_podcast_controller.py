@@ -6,7 +6,7 @@ import shutil
 import tempfile
 import unittest
 from io import StringIO
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import mock_open, patch
 
 from podcast_controller import main
 
