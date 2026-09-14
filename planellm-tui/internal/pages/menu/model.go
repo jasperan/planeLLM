@@ -3,8 +3,8 @@ package menu
 import (
 	"strings"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jasperan/planellm-tui/internal/app"
 	ctx "github.com/jasperan/planellm-tui/internal/context"
 )
@@ -50,7 +50,7 @@ func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "q", "esc":
 			return m, tea.Quit
@@ -62,7 +62,12 @@ func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 			if m.cursor < len(items)-1 {
 				m.cursor++
 			}
-		case "enter", " ":
+		// "space" is how bubbletea/v2 names the space bar. v1 reported it as " ",
+		// so this case used to read `case "enter", " "` and would have kept
+		// compiling while silently never matching — Space would simply stop
+		// selecting. Both spellings are bound so the binding survives either name,
+		// and the test suite presses the key rather than asserting this list.
+		case "enter", " ", "space":
 			target := items[m.cursor].page
 			return m, func() tea.Msg { return app.NavigateMsg{Page: target} }
 		}
