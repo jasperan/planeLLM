@@ -18,14 +18,14 @@ type topicResultMsg struct {
 }
 
 type Model struct {
-	ctx       *ctx.Context
-	input     textinput.Model
-	spinner   spinner.Model
-	result    *ctx.TopicResult
-	loading   bool
-	err       error
-	width     int
-	height    int
+	ctx     *ctx.Context
+	input   textinput.Model
+	spinner spinner.Model
+	result  *ctx.TopicResult
+	loading bool
+	err     error
+	width   int
+	height  int
 }
 
 func New(c *ctx.Context) *Model {

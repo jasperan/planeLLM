@@ -30,17 +30,17 @@ var ttsDescriptions = map[string]string{
 }
 
 type Model struct {
-	ctx        *ctx.Context
-	spinner    spinner.Model
-	files      []string
-	cursor     int
-	ttsIdx     int
-	result     *ctx.AudioResult
-	loading    bool
-	err        error
-	loaded     bool
-	width      int
-	height     int
+	ctx     *ctx.Context
+	spinner spinner.Model
+	files   []string
+	cursor  int
+	ttsIdx  int
+	result  *ctx.AudioResult
+	loading bool
+	err     error
+	loaded  bool
+	width   int
+	height  int
 }
 
 func New(c *ctx.Context) *Model {

@@ -103,10 +103,10 @@ func (c *APIClient) CreateTranscript(contentFile string, detailed bool) (*ctx.Tr
 func (c *APIClient) GenerateAudio(transcriptFile, ttsModel, fishRef, fishEmotion string) (*ctx.AudioResult, error) {
 	var r ctx.AudioResult
 	body := map[string]string{
-		"transcript_file":   transcriptFile,
-		"tts_model":         ttsModel,
-		"fish_reference": fishRef,
-		"fish_emotion":      fishEmotion,
+		"transcript_file": transcriptFile,
+		"tts_model":       ttsModel,
+		"fish_reference":  fishRef,
+		"fish_emotion":    fishEmotion,
 	}
 	return &r, c.post("/api/audio/generate", body, &r)
 }

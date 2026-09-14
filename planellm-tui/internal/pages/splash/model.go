@@ -97,7 +97,7 @@ func (m *Model) View() string {
 
 	if m.frame < planePhase {
 		// Phase 1: Airplane flies from left to right
-		planeX := (m.frame * (m.width + 25)) / planePhase - 25
+		planeX := (m.frame*(m.width+25))/planePhase - 25
 		planeY := centerY - len(airplane)/2
 
 		for y := 0; y < m.height-1; y++ {
