@@ -1,19 +1,27 @@
 // internal/theme/theme.go
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"image/color"
+
+	"charm.land/lipgloss/v2"
+)
 
 // Theme holds the aviation/podcast-themed color palette and pre-built styles.
 type Theme struct {
 	// Colors
-	Background lipgloss.Color
-	Primary    lipgloss.Color
-	Accent     lipgloss.Color
-	Alert      lipgloss.Color
-	Success    lipgloss.Color
-	Text       lipgloss.Color
-	TextMuted  lipgloss.Color
-	Border     lipgloss.Color
+	//
+	// lipgloss/v2 made Color a *function* (lipgloss.Color(s) color.Color), not a type,
+	// so the colour fields are declared as color.Color — which is also what
+	// Style.Foreground/Background accept.
+	Background color.Color
+	Primary    color.Color
+	Accent     color.Color
+	Alert      color.Color
+	Success    color.Color
+	Text       color.Color
+	TextMuted  color.Color
+	Border     color.Color
 
 	// Pre-built styles
 	TitleBar     lipgloss.Style

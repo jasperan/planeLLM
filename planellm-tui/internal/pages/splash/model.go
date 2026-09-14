@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jasperan/planellm-tui/internal/app"
 	ctx "github.com/jasperan/planellm-tui/internal/context"
 	"github.com/jasperan/planellm-tui/internal/theme"
@@ -68,7 +68,7 @@ func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 		m.height = msg.Height
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Any key skips to menu
 		return m, func() tea.Msg { return app.NavigateMsg{Page: app.PageMenu} }
 

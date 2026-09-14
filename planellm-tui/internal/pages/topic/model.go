@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/spinner"
+	"charm.land/bubbles/v2/textinput"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jasperan/planellm-tui/internal/app"
 	ctx "github.com/jasperan/planellm-tui/internal/context"
 )
@@ -32,7 +32,7 @@ func New(c *ctx.Context) *Model {
 	ti := textinput.New()
 	ti.Placeholder = "Enter a podcast topic (e.g. quantum computing, black holes...)"
 	ti.CharLimit = 200
-	ti.Width = 60
+	ti.SetWidth(60)
 	ti.Focus()
 
 	s := spinner.New()
@@ -99,7 +99,7 @@ func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 		m.spinner, cmd = m.spinner.Update(msg)
 		return m, cmd
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if m.loading {
 			return m, nil
 		}

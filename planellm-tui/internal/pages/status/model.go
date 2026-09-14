@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/jasperan/planellm-tui/internal/app"
 	ctx "github.com/jasperan/planellm-tui/internal/context"
 )
@@ -56,7 +56,7 @@ func (m *Model) Update(msg tea.Msg) (app.PageModel, tea.Cmd) {
 		m.width = msg.Width
 		m.height = msg.Height
 		return m, nil
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		if msg.String() == "r" {
 			return m, m.fetchStatus()
 		}

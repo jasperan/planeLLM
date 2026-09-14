@@ -1,11 +1,11 @@
 package app
 
 import (
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/lipgloss/v2"
 	ctx "github.com/jasperan/planellm-tui/internal/context"
 	"github.com/jasperan/planellm-tui/internal/theme"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 )
 
 // PageModel is the interface all pages implement.
@@ -67,7 +67,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		// Global quit
 		if msg.String() == "ctrl+c" {
 			return m, tea.Quit
@@ -88,19 +88,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m Model) View() string {
+// altView wraps rendered content in a v2 tea.View.
+//
+// AltScreen is a property of the returned View, re-evaluated on every render, so it
+// has to be set on EVERY return path — not only the main one. A path that returned a
+// plain View would drop the terminal out of the alternate screen and then re-enter it
+// on the next frame. (In v1 the alternate screen was a program option, applied
+// globally, so it could not be missed; in v2 it cannot be expressed that way.)
+func altView(content string) tea.View {
+	v := tea.NewView(content)
+	v.AltScreen = true
+	return v
+}
+
+func (m Model) View() tea.View {
 	if m.width == 0 {
-		return "Loading..."
+		return altView("Loading...")
 	}
 
 	page, ok := m.pages[m.current]
 	if !ok {
-		return "Page not found"
+		return altView("Page not found")
 	}
 
 	// Splash has no chrome
 	if m.current == PageSplash {
-		return page.View()
+		return altView(page.View())
 	}
 
 	th := m.ctx.Theme
@@ -121,7 +134,7 @@ func (m Model) View() string {
 		Height(contentHeight).
 		Render(page.View())
 
-	return titleBar + "\n" + content + "\n" + statusBar
+	return altView(titleBar + "\n" + content + "\n" + statusBar)
 }
 
 // NewTheme is a convenience re-export.

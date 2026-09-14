@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/jasperan/planellm-tui/internal/app"
 	ctx "github.com/jasperan/planellm-tui/internal/context"
 	"github.com/jasperan/planellm-tui/internal/pages/audio"
@@ -43,7 +43,7 @@ func main() {
 	}
 
 	m := app.New(c, pages)
-	p := tea.NewProgram(m, tea.WithAltScreen())
+	p := tea.NewProgram(m)
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
